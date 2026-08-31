@@ -13,11 +13,15 @@ A aplicação lê a connection string de um banco Postgres na variável
 Streamlit Community Cloud) ou variável de ambiente (usada pelo Docker).
 Veja `.streamlit/secrets.toml.example` para o formato.
 
-Qualquer Postgres gerenciado com camada gratuita funciona (ex.:
-[Neon](https://neon.tech) ou [Supabase](https://supabase.com) — ambos
-sem cartão de crédito para o plano free). O schema (tabelas de cada
-métrica + `import_runs`) é criado automaticamente na primeira execução
-via `init_schema()`, não há migrations manuais.
+Em produção usamos [Supabase](https://supabase.com) (Postgres gerenciado,
+plano free, sem cartão) — qualquer outro Postgres gerenciado com camada
+gratuita funciona igual (ex. [Neon](https://neon.tech)). No Supabase,
+use o modo **Session pooler** na tela de conexão do projeto (não
+"Direct connection" — essa usa IPv6 por padrão e exigiria um add-on
+pago de IPv4 para funcionar a partir do Streamlit Community Cloud). O
+schema (tabelas de cada métrica + `import_runs`) é criado
+automaticamente na primeira execução via `init_schema()`, não há
+migrations manuais.
 
 ## Como executar
 
@@ -59,9 +63,14 @@ Deploy gratuito, sem cartão de crédito:
    `app.py`.
 2. Em "Advanced settings" → **Secrets**, cole o conteúdo de
    `.streamlit/secrets.toml.example` já preenchido com sua
-   `DATABASE_URL` real (Neon/Supabase).
+   `DATABASE_URL` real (Supabase, connection string do Session pooler).
 3. Deploy. Como o banco é externo (não é disco local do container),
    os dados sobrevivem normalmente a redeploys e a reinícios do app.
+
+Por padrão o app fica **restrito a e-mails convidados**, não público
+(App settings → Sharing → "Only specific people can view this app").
+Para dar acesso a mais gente, adicione o e-mail (o mesmo usado para
+logar no Streamlit) nessa tela.
 
 ## Fluxo de uso
 
