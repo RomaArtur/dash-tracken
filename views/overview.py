@@ -106,12 +106,3 @@ def render_overview() -> None:
             theme="streamlit",
             height=320,
         )
-
-    st.divider()
-    pages = st.session_state.get("_metric_pages", {})
-    link_cols = st.columns(len(metrics))
-    for col, metric in zip(link_cols, metrics):
-        with col:
-            page = pages.get(metric.key)
-            if page is not None:
-                st.page_link(page, label=f"Ver detalhes de {metric.label}", icon=metric.icon, use_container_width=True)

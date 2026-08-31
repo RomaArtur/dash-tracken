@@ -196,13 +196,14 @@ h2, h3 {
 }
 
 /* ---------- logo ----------
-   Claro: wordmark padrão (texto preto) num chip branco, pro contraste.
-   Escuro: troca pra variante branca/verde (sem chip — a Streamlit
-   Cloud precisa de server.enableStaticServing=true pra servir
-   static/logo-wordmark-dark.png neste caminho). Só segue a preferência
-   do sistema operacional (@media), não o toggle manual de tema dentro
-   do app — CSS puro não tem como enxergar esse toggle para trocar a
-   imagem (só cores, via light-dark(), o que não é suficiente aqui). */
+   Estilo base = modo claro (wordmark padrão, texto preto, chip
+   branco). A troca pra variante branca/verde no escuro é 100% via
+   script (components/branding.py) — não via CSS: um @media
+   (prefers-color-scheme) aqui só enxergaria a preferência do SO, não
+   o toggle manual de tema dentro do app, e as duas coisas competindo
+   pelo mesmo <img> causava o bug de "texto branco no chip branco"
+   sempre que o SO e o tema do app divergiam (ex.: SO escuro + app
+   manualmente em claro). Deixar só o script decidir evita isso. */
 
 [data-testid="stSidebarLogo"] {
     height: 5.5rem;
@@ -225,13 +226,6 @@ h2, h3 {
     margin: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-    [data-testid="stSidebarLogo"] {
-        content: url("app/static/logo-wordmark-dark.png");
-        background-color: transparent;
-        padding: var(--tk-space-3) 0;
-    }
-}
 
 /* ---------- superfícies nativas unificadas (mesmo raio pra tudo que é "card") ---------- */
 

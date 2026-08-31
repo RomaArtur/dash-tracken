@@ -59,11 +59,6 @@ metric_pages = [
     for metric in METRICS.values()
 ]
 
-# Exposto para views/overview.py montar os links de "ver detalhes" por
-# métrica via st.page_link (que exige o objeto StreamlitPage, não só a
-# URL, para páginas registradas programaticamente como estas).
-st.session_state["_metric_pages"] = dict(zip(METRICS.keys(), metric_pages))
-
 navigation = st.navigation(
     {
         "Geral": [overview_page],
