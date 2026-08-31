@@ -23,6 +23,13 @@
     --tk-navy: light-dark(#22305E, #7E92CC);
     --tk-negative: light-dark(#D64545, #F06B6B);
 
+    /* Navy "estrutural" (--tk-navy) precisa ficar claro no escuro pra
+       servir de texto/ícone legível. O gradiente do hero/total
+       acumulado usa essa outra variável em vez disso — fica escura
+       nos dois temas de propósito, senão no escuro o navy claro
+       tomaria o card inteiro e o verde/roxo perderia o destaque. */
+    --tk-hero-base: light-dark(#22305E, #10152B);
+
     --tk-radius-chip: 6px;
     --tk-radius-ctl: 10px;
     --tk-radius-surf: 14px;
@@ -135,7 +142,7 @@ h2, h3 {
 
 .tk-hero {
     --tk-hero-accent: var(--tk-green);
-    background: linear-gradient(135deg, var(--tk-navy) 0%, var(--tk-hero-accent) 100%);
+    background: linear-gradient(135deg, var(--tk-hero-base) 0%, var(--tk-hero-accent) 100%);
     border-radius: var(--tk-radius-surf);
     padding: var(--tk-space-6);
     color: #FFFFFF;
