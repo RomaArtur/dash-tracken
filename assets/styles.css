@@ -192,6 +192,16 @@ h2, h3 {
     box-sizing: content-box;
 }
 
+/* iframe invisível (components/branding.py) que troca a logo no modo
+   escuro conforme o toggle manual — sem borda/moldura visível. */
+[data-testid="stSidebar"] iframe {
+    border: none;
+    display: block;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0;
+}
+
 @media (prefers-color-scheme: dark) {
     [data-testid="stSidebarLogo"] {
         content: url("app/static/logo-wordmark-dark.png");

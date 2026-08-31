@@ -61,6 +61,7 @@ def render_overview() -> None:
                 accent=metric.accent,
             )
 
+    st.subheader(f"Período selecionado — {start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}")
     cards.kpi_row(kpis, metrics, sparklines)
 
     st.divider()
