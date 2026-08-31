@@ -38,6 +38,16 @@ def _tint(hex_color: str, alpha: float = 0.12) -> str:
     return f"rgba({r}, {g}, {b}, {alpha})"
 
 
+def _week_range_label(monday) -> str:
+    """'05/07–11/07' a partir da segunda-feira que representa a semana
+    (ver services.metrics_service.weekly_comparison). Sem isso, o eixo
+    mostraria só a segunda-feira, parecendo um único dia em vez da
+    semana inteira que a barra soma."""
+    start = pd.to_datetime(monday)
+    end = start + pd.Timedelta(days=6)
+    return f"{start.strftime('%d/%m')}–{end.strftime('%d/%m')}"
+
+
 def line_evolution(df: pd.DataFrame, accent: str = "green") -> go.Figure:
     """Série única (magnitude ao longo do tempo) — 1 hue (o acento da
     métrica), linha de 2px, marcador só no último ponto, área em wash."""
@@ -100,6 +110,11 @@ def grouped_columns(df: pd.DataFrame, metrics: list[MetricDefinition], x_col: st
     """Colunas agrupadas comparando as métricas lado a lado no mesmo
     período (diário ou semanal, conforme o df recebido) — o gráfico
     principal da Visão Geral, no estilo do dashboard de referência."""
+    is_weekly = x_col == "semana"
+    x_values = df[x_col].apply(_week_range_label) if is_weekly else df[x_col]
+    hover_x = "%{x}" if is_weekly else "%{x|%d/%m/%Y}"
+    hover_prefix = "Semana de " if is_weekly else ""
+
     fig = go.Figure()
     for metric in metrics:
         if metric.key not in df.columns:
@@ -107,11 +122,11 @@ def grouped_columns(df: pd.DataFrame, metrics: list[MetricDefinition], x_col: st
         color = accent_color(metric.accent)
         fig.add_trace(
             go.Bar(
-                x=df[x_col],
+                x=x_values,
                 y=df[metric.key],
                 name=metric.label,
                 marker=dict(color=color, cornerradius=4),
-                hovertemplate="%{x|%d/%m/%Y}<br><b>%{y:,.0f}</b><extra>" + metric.label + "</extra>",
+                hovertemplate=f"{hover_prefix}{hover_x}<br><b>%{{y:,.0f}}</b><extra>{metric.label}</extra>",
             )
         )
     fig.update_layout(
@@ -122,7 +137,7 @@ def grouped_columns(df: pd.DataFrame, metrics: list[MetricDefinition], x_col: st
         bargroupgap=0.08,
     )
     fig.update_yaxes(zeroline=False)
-    fig.update_xaxes(showgrid=False)
+    fig.update_xaxes(showgrid=False, type="category" if is_weekly else None)
     return fig
 
 
@@ -137,15 +152,15 @@ def weekly_bar(df: pd.DataFrame, accent: str = "green") -> go.Figure:
     colors = [MUTED] * (len(df) - 1) + [color]
     fig = go.Figure(
         go.Bar(
-            x=df["semana"],
+            x=df["semana"].apply(_week_range_label),
             y=df["value"],
             marker=dict(color=colors, cornerradius=4),
-            hovertemplate="Semana de %{x|%d/%m/%Y}<br><b>%{y:,.0f}</b><extra></extra>",
+            hovertemplate="Semana de %{x}<br><b>%{y:,.0f}</b><extra></extra>",
         )
     )
     fig.update_layout(**_LAYOUT_DEFAULTS, bargap=0.35)
     fig.update_yaxes(zeroline=False)
-    fig.update_xaxes(showgrid=False)
+    fig.update_xaxes(showgrid=False, type="category")
     return fig
 
 
