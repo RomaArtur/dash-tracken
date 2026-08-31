@@ -8,23 +8,25 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-import duckdb
 import pandas as pd
+import psycopg
 
 from metrics.base import MetricDefinition
 
 
-def fetch_existing_keys(conn: duckdb.DuckDBPyConnection, metric: MetricDefinition) -> pd.DataFrame:
+def fetch_existing_keys(conn: psycopg.Connection, metric: MetricDefinition) -> pd.DataFrame:
     """Carrega chave natural + colunas de valor já persistidas, usadas
     para comparar com o arquivo importado e detectar novos/atualizados/
     inalterados."""
     cols = list(metric.key_columns) + list(metric.value_columns)
     col_list = ", ".join(cols)
-    return conn.execute(f"SELECT {col_list} FROM {metric.table_name}").fetch_df()
+    cur = conn.execute(f"SELECT {col_list} FROM {metric.table_name}")
+    columns = [col.name for col in cur.description]
+    return pd.DataFrame(cur.fetchall(), columns=columns)
 
 
 def upsert(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     metric: MetricDefinition,
     df: pd.DataFrame,
     import_run_id: int,
@@ -42,24 +44,24 @@ def upsert(
     key_cols = list(metric.key_columns)
     all_cols = list(staged.columns)
     col_list = ", ".join(all_cols)
+    placeholders = ", ".join(["%s"] * len(all_cols))
     conflict_cols = ", ".join(key_cols)
     set_clause = ", ".join(f"{c} = EXCLUDED.{c}" for c in all_cols if c not in key_cols)
 
-    conn.register("_staging_df", staged)
-    try:
-        conn.execute(
+    rows = [tuple(row) for row in staged.itertuples(index=False, name=None)]
+    with conn.cursor() as cur:
+        cur.executemany(
             f"""
             INSERT INTO {metric.table_name} ({col_list})
-            SELECT {col_list} FROM _staging_df
+            VALUES ({placeholders})
             ON CONFLICT ({conflict_cols}) DO UPDATE SET {set_clause}
-            """
+            """,
+            rows,
         )
-    finally:
-        conn.unregister("_staging_df")
 
 
 def fetch_metric_df(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     metric: MetricDefinition,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -68,11 +70,13 @@ def fetch_metric_df(
     conditions = []
     params: list = []
     if date_from is not None:
-        conditions.append(f"{metric.date_column} >= ?")
+        conditions.append(f"{metric.date_column} >= %s")
         params.append(date_from)
     if date_to is not None:
-        conditions.append(f"{metric.date_column} <= ?")
+        conditions.append(f"{metric.date_column} <= %s")
         params.append(date_to)
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
-    return conn.execute(query, params).fetch_df()
+    cur = conn.execute(query, params)
+    columns = [col.name for col in cur.description]
+    return pd.DataFrame(cur.fetchall(), columns=columns)

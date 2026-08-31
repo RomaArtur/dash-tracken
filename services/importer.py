@@ -99,9 +99,9 @@ def build_preview(metric: MetricDefinition, filename: str, raw: dict) -> ImportP
     conn = get_connection()
     existing_df = metrics_repository.fetch_existing_keys(conn, metric)
     if not existing_df.empty and metric.date_column in existing_df.columns:
-        # DuckDB retorna colunas DATE como datetime64; normaliza para
-        # date() puro, que é o que metric.validate() produz, para o
-        # merge abaixo funcionar corretamente.
+        # Normaliza a coluna de data para date() puro, que é o que
+        # metric.validate() produz, para o merge abaixo funcionar
+        # corretamente independentemente do tipo retornado pelo driver.
         existing_df[metric.date_column] = pd.to_datetime(existing_df[metric.date_column]).dt.date
 
     if existing_df.empty:

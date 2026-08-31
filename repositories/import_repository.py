@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import duckdb
 import pandas as pd
+import psycopg
 
 DDL_STATEMENTS = [
     "CREATE SEQUENCE IF NOT EXISTS seq_import_runs START 1",
@@ -32,7 +32,7 @@ DDL_STATEMENTS = [
 
 
 def create_run(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     *,
     metric_type: str,
     filename: str,
@@ -44,15 +44,15 @@ def create_run(
     status: str,
     error_message: str | None = None,
 ) -> int:
-    result = conn.execute(
+    row = conn.execute(
         """
         INSERT INTO import_runs (
             metric_type, filename, imported_at, records_received, records_inserted,
             records_updated, records_ignored, records_invalid, status, error_message
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
-        [
+        (
             metric_type,
             filename,
             datetime.now(),
@@ -63,10 +63,12 @@ def create_run(
             records_invalid,
             status,
             error_message,
-        ],
+        ),
     ).fetchone()
-    return int(result[0])
+    return int(row[0])
 
 
-def list_runs(conn: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    return conn.execute("SELECT * FROM import_runs ORDER BY imported_at DESC").fetch_df()
+def list_runs(conn: psycopg.Connection) -> pd.DataFrame:
+    cur = conn.execute("SELECT * FROM import_runs ORDER BY imported_at DESC")
+    columns = [col.name for col in cur.description]
+    return pd.DataFrame(cur.fetchall(), columns=columns)

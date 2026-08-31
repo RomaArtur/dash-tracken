@@ -7,10 +7,6 @@ venv/
 # Streamlit
 .streamlit/secrets.toml
 
-# Banco de dados local (histórico consolidado - não versionar)
-data/*.duckdb
-data/*.duckdb.wal
-
 # Amostras de dados reais usadas localmente (contêm dados de uso por usuário)
 data/samples/
 

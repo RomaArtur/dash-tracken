@@ -1,16 +1,25 @@
 # Tracken Analytics
 
 Dashboard de métricas de uso do sistema (Login, Pop-up e futuras
-funcionalidades), construído com **Streamlit + DuckDB + Pandas +
+funcionalidades), construído com **Streamlit + PostgreSQL + Pandas +
 Plotly**, substituindo o Power BI. Mantém histórico acumulado: cada
 importação de JSON soma-se ao que já existe, sem duplicar registros.
 
-## Como executar
+## Banco de dados
 
-Na primeira execução (qualquer um dos modos abaixo) o banco
-`data/analytics.duckdb` é criado automaticamente (schema vazio). Ele
-**não é versionado** — é o histórico consolidado local de cada
-máquina/ambiente.
+A aplicação lê a connection string de um banco Postgres na variável
+`DATABASE_URL` — via `st.secrets` (arquivo local
+`.streamlit/secrets.toml`, gitignored, ou as Secrets do app no
+Streamlit Community Cloud) ou variável de ambiente (usada pelo Docker).
+Veja `.streamlit/secrets.toml.example` para o formato.
+
+Qualquer Postgres gerenciado com camada gratuita funciona (ex.:
+[Neon](https://neon.tech) ou [Supabase](https://supabase.com) — ambos
+sem cartão de crédito para o plano free). O schema (tabelas de cada
+métrica + `import_runs`) é criado automaticamente na primeira execução
+via `init_schema()`, não há migrations manuais.
+
+## Como executar
 
 ### Local (Windows)
 
@@ -19,7 +28,9 @@ máquina/ambiente.
 ```
 
 O script cria o `.venv` se não existir, instala/atualiza as
-dependências e sobe o Streamlit em `http://localhost:8501`.
+dependências e sobe o Streamlit em `http://localhost:8501`. Requer
+`.streamlit/secrets.toml` com `DATABASE_URL` preenchido (copie de
+`.streamlit/secrets.toml.example`).
 
 Alternativa manual:
 
@@ -36,27 +47,21 @@ streamlit run app.py
 
 ```bash
 docker build -t dash-tracken .
-docker run -p 8501:8501 -v dash-tracken-data:/app/data dash-tracken
+docker run -p 8501:8501 -e DATABASE_URL="postgresql://..." dash-tracken
 ```
 
-O volume `dash-tracken-data` garante que `analytics.duckdb` sobrevive a
-`docker run`/restart do container — sem ele, os dados importados
-seriam perdidos a cada novo container.
+### Produção (Streamlit Community Cloud)
 
-### Produção (Render)
+Deploy gratuito, sem cartão de crédito:
 
-O repositório tem um `render.yaml` (Blueprint) que provisiona:
-
-- um Web Service Docker a partir deste `Dockerfile`;
-- um **Persistent Disk** de 1GB montado em `/app/data`, para o
-  `analytics.duckdb` sobreviver a redeploys — sem isso, qualquer novo
-  deploy apagaria todo o histórico importado (disco de containers é
-  efêmero por padrão).
-
-Para publicar: conecte este repositório GitHub à sua conta Render e
-aplique o Blueprint (New → Blueprint → selecione `dash-tracken`). Não
-há variáveis de ambiente obrigatórias — a porta é lida de `$PORT`,
-que a Render injeta automaticamente.
+1. Em [share.streamlit.io](https://share.streamlit.io), "New app" →
+   selecione o repositório `dash-tracken`, branch `main`, arquivo
+   `app.py`.
+2. Em "Advanced settings" → **Secrets**, cole o conteúdo de
+   `.streamlit/secrets.toml.example` já preenchido com sua
+   `DATABASE_URL` real (Neon/Supabase).
+3. Deploy. Como o banco é externo (não é disco local do container),
+   os dados sobrevivem normalmente a redeploys e a reinícios do app.
 
 ## Fluxo de uso
 
@@ -155,7 +160,7 @@ metrics/                # o que cada métrica É: parse, validação, schema, ch
   login.py, popup.py    #   uma métrica = um módulo
   __init__.py           #   METRICS = {chave: definição}  <- registro central
 services/
-  database.py           #   ÚNICO lugar que conhece DuckDB (conexão + schema)
+  database.py           #   ÚNICO lugar que conhece Postgres (conexão + schema)
   importer.py            #   pipeline: parse -> valida -> detecta dup -> persiste
   metrics_service.py     #   KPIs, séries diárias, comparação semanal, ranking
 repositories/
@@ -165,7 +170,6 @@ components/               # widgets Streamlit reutilizáveis (cards, gráficos, 
 views/                    # uma função de página por tela; sem lógica de negócio dentro delas
 utils/                    # logging e injeção de CSS
 assets/styles.css         # visual "SaaS", sem exagero de efeitos
-data/analytics.duckdb     # histórico consolidado (gitignored)
 logs/app.log              # log de importações e erros
 ```
 
@@ -180,10 +184,6 @@ arquivo de página novo, nenhuma duplicação de layout/lógica.
 
 ### Extensibilidade pensada, sem implementar agora
 
-- **Trocar DuckDB por PostgreSQL**: toda query mora em `repositories/`
-  e usa SQL ANSI-padrão (`INSERT ... ON CONFLICT ... DO UPDATE` já é
-  sintaxe compatível com Postgres). Só `services/database.py` precisa
-  mudar.
 - **API/webhook de importação automática**: `services/importer.py` já
   separa "receber bytes JSON" de "quem os enviou" — reaproveitável por
   um endpoint futuro sem tocar na lógica de negócio.
@@ -196,7 +196,7 @@ arquivo de página novo, nenhuma duplicação de layout/lógica.
 
 ## Cache
 
-- `st.cache_resource` na conexão DuckDB (`services/database.py`) —
+- `st.cache_resource` na conexão Postgres (`services/database.py`) —
   reaberta uma única vez por sessão.
 - `st.cache_data` nas séries diárias usadas pelos gráficos
   (`services/metrics_service.load_daily_series_cached`) — invalidado

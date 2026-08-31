@@ -28,7 +28,7 @@ class MetricDefinition:
     """Emoji usado na navegação e nos títulos das páginas."""
 
     table_name: str
-    """Nome da tabela DuckDB onde os registros normalizados são persistidos."""
+    """Nome da tabela Postgres onde os registros normalizados são persistidos."""
 
     key_columns: Sequence[str]
     """Colunas que formam a chave natural de um registro (usadas no
