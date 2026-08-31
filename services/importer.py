@@ -1,0 +1,193 @@
+"""Pipeline de importação: validação -> normalização -> detecção de
+duplicidade/idempotência -> preview -> persistência.
+
+A idempotência é garantida comparando a chave natural de cada métrica
+(`MetricDefinition.key_columns`) com o que já está no banco:
+
+  - chave não existe no banco            -> registro NOVO (será inserido)
+  - chave existe e valores são iguais    -> INALTERADO (ignorado, nada é escrito)
+  - chave existe e algum valor mudou     -> ATUALIZADO (UPSERT)
+
+Isso significa que importar o mesmo arquivo duas vezes é seguro: na
+segunda vez todos os registros caem em "inalterado" e nenhuma escrita é
+feita além do próprio registro em import_runs.
+"""
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass
+
+import pandas as pd
+
+from metrics.base import MetricDefinition
+from repositories import import_repository, metrics_repository
+from services.database import get_connection
+
+logger = logging.getLogger(__name__)
+
+
+class ImportValidationError(Exception):
+    """Erro ao ler ou interpretar o arquivo de métricas enviado."""
+
+
+@dataclass
+class ImportPreview:
+    metric: MetricDefinition
+    filename: str
+    total_parsed: int
+    valid_df: pd.DataFrame
+    invalid_df: pd.DataFrame
+    new_df: pd.DataFrame
+    updated_df: pd.DataFrame
+    unchanged_df: pd.DataFrame
+
+    @property
+    def n_new(self) -> int:
+        return len(self.new_df)
+
+    @property
+    def n_updated(self) -> int:
+        return len(self.updated_df)
+
+    @property
+    def n_unchanged(self) -> int:
+        return len(self.unchanged_df)
+
+    @property
+    def n_invalid(self) -> int:
+        return len(self.invalid_df)
+
+    @property
+    def n_existing(self) -> int:
+        return self.n_updated + self.n_unchanged
+
+
+def load_json(file_bytes: bytes) -> dict:
+    try:
+        return json.loads(file_bytes.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ImportValidationError(f"Arquivo JSON inválido: {exc}") from exc
+
+
+def _empty_preview(metric: MetricDefinition, filename: str, parsed: pd.DataFrame) -> ImportPreview:
+    return ImportPreview(metric, filename, 0, parsed, parsed, parsed, parsed, parsed)
+
+
+def build_preview(metric: MetricDefinition, filename: str, raw: dict) -> ImportPreview:
+    try:
+        parsed = metric.parse(raw)
+    except Exception as exc:
+        logger.exception("Falha ao normalizar arquivo %s", filename)
+        raise ImportValidationError(
+            f"Não foi possível interpretar o arquivo para a métrica '{metric.label}': {exc}"
+        ) from exc
+
+    if parsed.empty:
+        return _empty_preview(metric, filename, parsed)
+
+    valid_df, invalid_df = metric.validate(parsed)
+
+    key_cols = list(metric.key_columns)
+    value_cols = list(metric.value_columns)
+    keep_cols = key_cols + value_cols
+
+    if valid_df.empty:
+        empty_keep = pd.DataFrame(columns=keep_cols)
+        return ImportPreview(metric, filename, len(parsed), valid_df, invalid_df, empty_keep, empty_keep, empty_keep)
+
+    conn = get_connection()
+    existing_df = metrics_repository.fetch_existing_keys(conn, metric)
+    if not existing_df.empty and metric.date_column in existing_df.columns:
+        # DuckDB retorna colunas DATE como datetime64; normaliza para
+        # date() puro, que é o que metric.validate() produz, para o
+        # merge abaixo funcionar corretamente.
+        existing_df[metric.date_column] = pd.to_datetime(existing_df[metric.date_column]).dt.date
+
+    if existing_df.empty:
+        new_df = valid_df[keep_cols].copy()
+        updated_df = pd.DataFrame(columns=keep_cols)
+        unchanged_df = pd.DataFrame(columns=keep_cols)
+    else:
+        merged = valid_df[keep_cols].merge(
+            existing_df, on=key_cols, how="left", suffixes=("", "_existing"), indicator=True
+        )
+        new_df = merged[merged["_merge"] == "left_only"][keep_cols].copy()
+        both_df = merged[merged["_merge"] == "both"].copy()
+
+        if both_df.empty:
+            updated_df = pd.DataFrame(columns=keep_cols)
+            unchanged_df = pd.DataFrame(columns=keep_cols)
+        else:
+            changed_mask = pd.Series(False, index=both_df.index)
+            for col in value_cols:
+                existing_col = f"{col}_existing" if f"{col}_existing" in both_df.columns else col
+                changed_mask |= both_df[col].astype(str) != both_df[existing_col].astype(str)
+            updated_df = both_df.loc[changed_mask, keep_cols].copy()
+            unchanged_df = both_df.loc[~changed_mask, keep_cols].copy()
+
+    return ImportPreview(
+        metric=metric,
+        filename=filename,
+        total_parsed=len(parsed),
+        valid_df=valid_df,
+        invalid_df=invalid_df,
+        new_df=new_df,
+        updated_df=updated_df,
+        unchanged_df=unchanged_df,
+    )
+
+
+def commit_import(preview: ImportPreview) -> int:
+    """Persiste os registros novos/atualizados e grava a execução no
+    histórico de importações. Registros inalterados não geram escrita."""
+    conn = get_connection()
+    frames = [d for d in (preview.new_df, preview.updated_df) if not d.empty]
+    to_write = pd.concat(frames, ignore_index=True) if frames else preview.new_df.copy()
+
+    status = "sucesso" if preview.n_invalid == 0 else "parcial"
+    error_message = f"{preview.n_invalid} registro(s) inválido(s) ignorado(s)." if preview.n_invalid else None
+
+    try:
+        run_id = import_repository.create_run(
+            conn,
+            metric_type=preview.metric.key,
+            filename=preview.filename,
+            records_received=preview.total_parsed,
+            records_inserted=preview.n_new,
+            records_updated=preview.n_updated,
+            records_ignored=preview.n_unchanged,
+            records_invalid=preview.n_invalid,
+            status=status,
+            error_message=error_message,
+        )
+        metrics_repository.upsert(conn, preview.metric, to_write, run_id)
+        from services.metrics_service import clear_cache
+
+        clear_cache()
+    except Exception as exc:
+        logger.exception("Falha ao persistir importação de %s", preview.filename)
+        import_repository.create_run(
+            conn,
+            metric_type=preview.metric.key,
+            filename=preview.filename,
+            records_received=preview.total_parsed,
+            records_inserted=0,
+            records_updated=0,
+            records_ignored=0,
+            records_invalid=preview.n_invalid,
+            status="erro",
+            error_message=str(exc),
+        )
+        raise
+
+    logger.info(
+        "Importação concluída: %s (%s) - novos=%d atualizados=%d ignorados=%d invalidos=%d",
+        preview.filename,
+        preview.metric.key,
+        preview.n_new,
+        preview.n_updated,
+        preview.n_unchanged,
+        preview.n_invalid,
+    )
+    return run_id

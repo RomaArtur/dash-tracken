@@ -1,0 +1,278 @@
+/* ============================================================
+   Tracken Analytics — tema visual
+   Paleta extraída das apresentações da marca (Canva):
+     verde  #28A828  (ação, crescimento, identidade principal)
+     roxo   #8848D8  (acento secundário)
+     navy   #22305E  (parceiro do gradiente de assinatura)
+     creme  #FCFCFA  (fundo — "branco com personalidade")
+   ============================================================ */
+
+:root {
+    --tk-bg: #FCFCFA;
+    --tk-surface: #FFFFFF;
+    --tk-border: #EAEAE3;
+    --tk-ink: #16181D;
+    --tk-ink-secondary: #676B72;
+    --tk-ink-muted: #9A9EA6;
+    --tk-green: #28A828;
+    --tk-green-dark: #1E8A1E;
+    --tk-green-tint: #E8F6E6;
+    --tk-purple: #8848D8;
+    --tk-purple-tint: #F1E9FB;
+    --tk-navy: #22305E;
+    --tk-negative: #D64545;
+    --tk-negative-tint: #FBEAEA;
+    --tk-radius: 16px;
+    --tk-shadow: 0 1px 2px rgba(22, 24, 29, 0.04), 0 8px 24px rgba(22, 24, 29, 0.03);
+}
+
+html, body, [class*="css"] {
+    font-family: "Inter", "Segoe UI", -apple-system, sans-serif;
+}
+
+/* ---------- superfícies ---------- */
+
+[data-testid="stAppViewContainer"] {
+    background-color: var(--tk-bg);
+}
+
+[data-testid="stHeader"] {
+    background-color: rgba(0, 0, 0, 0);
+}
+
+[data-testid="stSidebar"] {
+    background-color: var(--tk-surface);
+    border-right: 1px solid var(--tk-border);
+}
+
+[data-testid="stMainBlockContainer"] {
+    padding-top: 2rem;
+}
+
+/* ---------- tipografia ---------- */
+
+h1, h2, h3 {
+    color: var(--tk-ink);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+}
+
+h1 {
+    font-size: 1.6rem !important;
+}
+
+h2, h3 {
+    font-size: 1.05rem !important;
+    color: var(--tk-ink-secondary);
+    text-transform: none;
+    margin-top: 0.5rem;
+}
+
+[data-testid="stCaptionContainer"] {
+    color: var(--tk-ink-muted);
+}
+
+/* ---------- navegação da sidebar ---------- */
+
+[data-testid="stSidebarNav"] a,
+[data-testid="stSidebarNavLink"] {
+    border-radius: 10px !important;
+    margin: 2px 0;
+    color: var(--tk-ink-secondary) !important;
+    font-weight: 500;
+}
+
+[data-testid="stSidebarNav"] a:hover,
+[data-testid="stSidebarNavLink"]:hover {
+    background-color: var(--tk-green-tint) !important;
+    color: var(--tk-green-dark) !important;
+}
+
+[data-testid="stSidebarNav"] a[aria-current="page"],
+[data-testid="stSidebarNavLink"][aria-current="page"] {
+    background-color: var(--tk-green-tint) !important;
+    color: var(--tk-green-dark) !important;
+    font-weight: 600;
+}
+
+/* ---------- cards de KPI customizados (components/cards.py) ---------- */
+
+.tk-stat-card {
+    background-color: var(--tk-surface);
+    border: 1px solid var(--tk-border);
+    border-radius: var(--tk-radius);
+    padding: 18px 20px;
+    box-shadow: var(--tk-shadow);
+    height: 100%;
+}
+
+.tk-stat-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.tk-stat-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    background-color: var(--tk-green-tint);
+}
+
+.tk-stat-icon.tk-purple-bg {
+    background-color: var(--tk-purple-tint);
+}
+
+.tk-stat-label {
+    font-size: 0.82rem;
+    color: var(--tk-ink-secondary);
+    font-weight: 500;
+}
+
+.tk-stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--tk-ink);
+    line-height: 1.1;
+    margin-bottom: 8px;
+}
+
+.tk-stat-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 999px;
+}
+
+.tk-stat-delta.up {
+    background-color: var(--tk-green-tint);
+    color: var(--tk-green-dark);
+}
+
+.tk-stat-delta.down {
+    background-color: var(--tk-negative-tint);
+    color: var(--tk-negative);
+}
+
+.tk-stat-delta.flat {
+    background-color: #F1F1EE;
+    color: var(--tk-ink-muted);
+}
+
+.tk-stat-sub {
+    font-size: 0.76rem;
+    color: var(--tk-ink-muted);
+    margin-left: 6px;
+}
+
+/* ---------- hero card (visão geral) ---------- */
+
+.tk-hero {
+    background: linear-gradient(135deg, var(--tk-green) 0%, var(--tk-purple) 100%);
+    border-radius: var(--tk-radius);
+    padding: 24px 26px;
+    color: #FFFFFF;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: var(--tk-shadow);
+}
+
+.tk-hero-label {
+    font-size: 0.82rem;
+    font-weight: 500;
+    opacity: 0.85;
+}
+
+.tk-hero-value {
+    font-size: 2.1rem;
+    font-weight: 700;
+    margin: 10px 0 4px 0;
+    letter-spacing: -0.02em;
+}
+
+.tk-hero-sub {
+    font-size: 0.8rem;
+    opacity: 0.85;
+}
+
+/* ---------- containers padrão do streamlit usados como "cards" ---------- */
+
+[data-testid="stDataFrame"] {
+    border: 1px solid var(--tk-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+div[data-testid="stExpander"] {
+    border: 1px solid var(--tk-border);
+    border-radius: 12px;
+    background-color: var(--tk-surface);
+}
+
+[data-testid="stMetric"] {
+    background-color: var(--tk-surface);
+    border: 1px solid var(--tk-border);
+    border-radius: var(--tk-radius);
+    padding: 16px 18px;
+    box-shadow: var(--tk-shadow);
+}
+
+[data-testid="stMetricLabel"] {
+    font-size: 0.82rem;
+    color: var(--tk-ink-secondary);
+    font-weight: 500;
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--tk-ink);
+}
+
+/* ---------- tabs ---------- */
+
+button[data-baseweb="tab"] {
+    font-weight: 500;
+}
+
+[data-testid="stTabs"] [aria-selected="true"] {
+    color: var(--tk-green-dark) !important;
+}
+
+[data-baseweb="tab-highlight"] {
+    background-color: var(--tk-green) !important;
+}
+
+/* ---------- botões ---------- */
+
+button[kind="primary"] {
+    border-radius: 8px;
+    background-color: var(--tk-green);
+    border-color: var(--tk-green);
+}
+
+button[kind="primary"]:hover {
+    background-color: var(--tk-green-dark);
+    border-color: var(--tk-green-dark);
+}
+
+hr {
+    margin: 1.4rem 0;
+    border-color: var(--tk-border);
+}
+
+/* ---------- remove o chrome padrão do Streamlit (barra "Deploy") ---------- */
+
+[data-testid="stToolbar"] {
+    visibility: hidden;
+}
