@@ -1,8 +1,11 @@
 """Visão Geral: hero card com o histórico acumulado, KPIs com
 sparkline por métrica, um gráfico de colunas comparando as métricas
-lado a lado (diário/semanal) e comparação semanal individual — sem as
-abas duplicadas que a versão anterior tinha (Evolução e Comparação
-semanal, cada uma repetindo os mesmos rótulos de métrica)."""
+lado a lado (diário/semanal) e a proporção do total acumulado em uma
+rosca — sem as abas duplicadas que a versão anterior tinha (Evolução e
+Comparação semanal, cada uma repetindo os mesmos rótulos de métrica).
+A comparação semanal por métrica individual mora só nas páginas de
+detalhe (views/metric_page.py), não aqui — repeti-la na Visão Geral
+era redundante."""
 from __future__ import annotations
 
 import streamlit as st
@@ -92,21 +95,17 @@ def render_overview() -> None:
             height=360,
         )
 
-    st.subheader("Comparação semanal por métrica")
-    weekly_cols = st.columns(len(metrics))
-    for col, metric in zip(weekly_cols, metrics):
-        with col:
-            st.caption(metric.label)
-            weekly_df = ms.weekly_comparison(series_by_metric[metric.key])
-            if weekly_df.empty:
-                st.info("Sem dados suficientes.")
-            else:
-                st.plotly_chart(
-                    charts.weekly_bar(weekly_df, accent=metric.accent),
-                    width="stretch",
-                    theme="streamlit",
-                    height=260,
-                )
+    st.subheader("Proporção do total acumulado")
+    totals = {metric.key: ms.total_all_time(series_by_metric[metric.key]) for metric in metrics}
+    if not any(totals.values()):
+        st.info("Sem dados para exibir ainda.")
+    else:
+        st.plotly_chart(
+            charts.proportion_pie(totals, metrics),
+            width="stretch",
+            theme="streamlit",
+            height=320,
+        )
 
     st.divider()
     pages = st.session_state.get("_metric_pages", {})

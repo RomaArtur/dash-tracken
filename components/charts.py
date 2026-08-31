@@ -164,6 +164,41 @@ def weekly_bar(df: pd.DataFrame, accent: str = "green") -> go.Figure:
     return fig
 
 
+def proportion_pie(totals: dict[str, float], metrics: list[MetricDefinition]) -> go.Figure:
+    """Rosca (donut) com a proporção de cada métrica sobre um total —
+    cor por acento, igual aos outros gráficos, com o total combinado
+    em destaque no centro."""
+    labels = [m.label for m in metrics if totals.get(m.key, 0) > 0]
+    values = [totals[m.key] for m in metrics if totals.get(m.key, 0) > 0]
+    colors = [accent_color(m.accent) for m in metrics if totals.get(m.key, 0) > 0]
+    combined = sum(values)
+
+    fig = go.Figure(
+        go.Pie(
+            labels=labels,
+            values=values,
+            hole=0.55,
+            marker=dict(colors=colors, line=dict(color="rgba(0,0,0,0)", width=0)),
+            textinfo="label+percent",
+            hovertemplate="%{label}<br><b>%{value:,.0f}</b> (%{percent})<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        **{**_LAYOUT_DEFAULTS, "showlegend": True},
+        legend=_LEGEND,
+        annotations=[
+            dict(
+                text=f"<b>{combined:,.0f}</b>".replace(",", "."),
+                x=0.5,
+                y=0.5,
+                showarrow=False,
+                font=dict(size=20),
+            )
+        ],
+    )
+    return fig
+
+
 def ranking_horizontal(
     df: pd.DataFrame, label_col: str, value_col: str = "value", accent: str = "green"
 ) -> go.Figure:
