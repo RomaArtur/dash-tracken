@@ -1,11 +1,14 @@
 """Cards de KPI e hero card da Visão Geral.
 
 Os cards de KPI usam st.metric nativo (Streamlit 1.62), que já
-reproduz o padrão de stat-tile com ícone + valor + pill de delta +
-sparkline, sem precisar de HTML customizado — a cor por métrica (verde
-Login / roxo Pop-up / navy) é aplicada via CSS, escopada por um
-st.container(key=...) que vira uma classe "st-key-..." no DOM (ver
-assets/styles.css).
+reproduz o padrão de stat-tile com ícone + valor + sparkline, sem
+precisar de HTML customizado — a cor por métrica (verde Login / roxo
+Pop-up / navy) é aplicada via CSS, escopada por um st.container(key=...)
+que vira uma classe "st-key-..." no DOM (ver assets/styles.css).
+
+O comparativo com o período anterior (delta) foi removido por decisão
+do usuário — kpi.delta_pct continua calculado em services/metrics_service.py
+(usado em outros lugares), só não é mais exibido aqui.
 
 O hero card ("Histórico acumulado") é o único que continua HTML
 customizado, por não ter equivalente nativo.
@@ -33,18 +36,10 @@ def stat_card(
     key: str = "tk-accent-green-0",
     sparkline: pd.Series | None = None,
 ) -> None:
-    if kpi.delta_pct is None:
-        delta, delta_description = None, None
-    else:
-        delta = f"{kpi.delta_pct:+.1f}%"
-        delta_description = "vs. período anterior"
-
     with st.container(key=key):
         st.metric(
             label=kpi.label,
             value=_format_number(kpi.current),
-            delta=delta,
-            delta_description=delta_description,
             icon=icon,
             border=True,
             chart_data=sparkline if sparkline is not None and not sparkline.empty else None,
