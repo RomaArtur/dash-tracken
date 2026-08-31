@@ -111,11 +111,11 @@ def grouped_columns(df: pd.DataFrame, metrics: list[MetricDefinition], x_col: st
                 y=df[metric.key],
                 name=metric.label,
                 marker=dict(color=color, cornerradius=4),
-                hovertemplate="%{x}<br><b>%{y:,.0f}</b><extra>" + metric.label + "</extra>",
+                hovertemplate="%{x|%d/%m/%Y}<br><b>%{y:,.0f}</b><extra>" + metric.label + "</extra>",
             )
         )
     fig.update_layout(
-        **{**_LAYOUT_DEFAULTS, "showlegend": True},
+        **{**_LAYOUT_DEFAULTS, "showlegend": True, "hovermode": "closest"},
         legend=_LEGEND,
         barmode="group",
         bargap=0.25,
