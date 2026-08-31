@@ -134,6 +134,6 @@ DEFINITION = MetricDefinition(
     ddl=DDL,
     parse=parse,
     validate=validate,
-    ranking_dimensions={"codemp": "Empresa", "coduser": "Usuário"},
+    ranking_dimensions=None,
     accent="purple",
 )

@@ -23,6 +23,6 @@ def render_sidebar_brand() -> None:
     if WORDMARK_PATH.exists():
         st.logo(
             str(WORDMARK_PATH),
-            size="medium",
+            size="large",
             icon_image=str(MARK_PATH) if MARK_PATH.exists() else None,
         )

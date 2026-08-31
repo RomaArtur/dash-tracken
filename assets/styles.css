@@ -176,7 +176,13 @@ h2, h3 {
 [data-testid="stSidebar"] [data-testid="stLogo"] {
     background-color: #FFFFFF;
     border-radius: var(--tk-radius-ctl);
-    padding: var(--tk-space-2) var(--tk-space-3);
+    padding: var(--tk-space-3) var(--tk-space-4);
+    margin-bottom: var(--tk-space-2);
+}
+
+[data-testid="stSidebar"] [data-testid="stLogo"] img {
+    height: 2.75rem;
+    width: auto;
 }
 
 /* ---------- superfícies nativas unificadas (mesmo raio pra tudo que é "card") ---------- */
