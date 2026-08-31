@@ -173,16 +173,15 @@ h2, h3 {
 /* ---------- logo (chip branco — garante contraste com o pin/wordmark
    pretos da marca em qualquer tema, sem precisar de um arquivo extra) ---------- */
 
-[data-testid="stSidebar"] [data-testid="stLogo"] {
+[data-testid="stSidebarLogo"] {
+    height: 5.5rem;
+    width: auto;
+    max-width: calc(100% - 2 * var(--tk-space-4));
     background-color: #FFFFFF;
     border-radius: var(--tk-radius-ctl);
     padding: var(--tk-space-3) var(--tk-space-4);
-    margin-bottom: var(--tk-space-2);
-}
-
-[data-testid="stSidebar"] [data-testid="stLogo"] img {
-    height: 2.75rem;
-    width: auto;
+    margin: var(--tk-space-3) var(--tk-space-2) var(--tk-space-2);
+    box-sizing: content-box;
 }
 
 /* ---------- superfícies nativas unificadas (mesmo raio pra tudo que é "card") ---------- */
