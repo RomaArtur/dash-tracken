@@ -9,6 +9,7 @@ arquivo nem duplicar páginas: basta registrar a nova MetricDefinition.
 from __future__ import annotations
 
 import functools
+from pathlib import Path
 
 import streamlit as st
 
@@ -24,7 +25,13 @@ from views.overview import render_overview
 
 setup_logging()
 
-st.set_page_config(page_title="Tracken Analytics", page_icon=":material/monitoring:", layout="wide")
+_FAVICON = Path(__file__).resolve().parent / "assets" / "logo-mark.png"
+
+st.set_page_config(
+    page_title="Tracken Analytics",
+    page_icon=str(_FAVICON) if _FAVICON.exists() else ":material/monitoring:",
+    layout="wide",
+)
 
 init_schema()
 inject_css()
