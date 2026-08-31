@@ -52,6 +52,17 @@ def render_overview() -> None:
 
     cards.kpi_row(kpis, metrics, sparklines)
 
+    total_kpis = [
+        ms.KPI(label=metric.label, current=ms.total_all_time(series_by_metric[metric.key]), previous=0.0)
+        for metric in metrics
+    ]
+    total_sparklines = [
+        series_by_metric[metric.key]["value"] if not series_by_metric[metric.key].empty else None
+        for metric in metrics
+    ]
+    st.subheader("Total acumulado")
+    cards.kpi_row(total_kpis, metrics, total_sparklines, key_prefix="total")
+
     st.divider()
     st.subheader("Login e Pop-up")
     granularity = st.segmented_control(

@@ -71,6 +71,15 @@ def clear_cache() -> None:
     load_daily_series_cached.clear()
 
 
+def total_all_time(daily_df: pd.DataFrame) -> float:
+    """Soma de todo o histórico da métrica, sem filtro de período —
+    usado no card de 'Total acumulado' da Visão Geral (diferente do
+    KPI de período, que só soma os dias dentro do filtro selecionado)."""
+    if daily_df.empty:
+        return 0.0
+    return float(daily_df["value"].sum())
+
+
 def previous_period(start: date, end: date) -> tuple[date, date]:
     """Dado um período [start, end], retorna o período imediatamente
     anterior de mesma duração, para comparação."""

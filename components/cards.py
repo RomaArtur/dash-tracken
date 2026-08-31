@@ -51,6 +51,7 @@ def kpi_row(
     kpis: list[KPI],
     metrics: list[MetricDefinition],
     sparklines: list[pd.Series | None] | None = None,
+    key_prefix: str = "kpi",
 ) -> None:
     if not kpis:
         return
@@ -58,7 +59,13 @@ def kpi_row(
     cols = st.columns(len(kpis))
     for i, (col, kpi, metric, spark) in enumerate(zip(cols, kpis, metrics, sparklines)):
         with col:
-            stat_card(kpi, icon=metric.icon, accent=metric.accent, key=f"tk-accent-{metric.accent}-{i}", sparkline=spark)
+            stat_card(
+                kpi,
+                icon=metric.icon,
+                accent=metric.accent,
+                key=f"tk-accent-{metric.accent}-{key_prefix}-{i}",
+                sparkline=spark,
+            )
 
 
 def hero_card(label: str, value: str, sub: str = "", icon: str = "database") -> None:
