@@ -1,10 +1,31 @@
 [theme]
-base = "light"
+font = "sans serif"
+headingFont = "sans serif"
+baseFontSize = 16
+baseRadius = "0.625rem"
+buttonRadius = "0.625rem"
+metricValueFontSize = "1.75rem"
+showWidgetBorder = true
+showSidebarBorder = true
+chartCategoricalColors = ["#28A828", "#9A5FE0", "#22305E"]
+
+[theme.light]
 primaryColor = "#28A828"
 backgroundColor = "#FCFCFA"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#16181D"
-font = "sans serif"
+borderColor = "#EAEAE3"
+linkColor = "#1E8A1E"
+dataframeHeaderBackgroundColor = "#F6F6F2"
+
+[theme.dark]
+primaryColor = "#45C245"
+backgroundColor = "#14161A"
+secondaryBackgroundColor = "#1C1F24"
+textColor = "#EDEEF0"
+borderColor = "#2A2E35"
+linkColor = "#45C245"
+dataframeHeaderBackgroundColor = "#22262D"
 
 [server]
 headless = true
@@ -12,3 +33,6 @@ runOnSave = true
 
 [browser]
 gatherUsageStats = false
+
+[client]
+toolbarMode = "viewer"

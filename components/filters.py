@@ -16,28 +16,26 @@ _PRESETS = {
 def period_filter(key_prefix: str) -> tuple[date, date]:
     """Renderiza o seletor de período (presets + intervalo personalizado)
     e retorna (data_inicio, data_fim)."""
-    col1, col2 = st.columns([1, 2])
-    with col1:
+    with st.container(horizontal=True, vertical_alignment="bottom"):
         preset = st.selectbox(
             "Período",
             options=[*_PRESETS.keys(), "Personalizado"],
             key=f"{key_prefix}_preset",
         )
 
-    today = date.today()
-    if preset == "Personalizado":
-        with col2:
+        today = date.today()
+        if preset == "Personalizado":
             value = st.date_input(
                 "Intervalo",
                 value=(today - timedelta(days=30), today),
                 key=f"{key_prefix}_range",
             )
-        if isinstance(value, tuple) and len(value) == 2:
-            start, end = value
+            if isinstance(value, tuple) and len(value) == 2:
+                start, end = value
+            else:
+                start, end = today - timedelta(days=30), today
         else:
-            start, end = today - timedelta(days=30), today
-    else:
-        days = _PRESETS[preset]
-        start, end = today - timedelta(days=days - 1), today
+            days = _PRESETS[preset]
+            start, end = today - timedelta(days=days - 1), today
 
     return start, end

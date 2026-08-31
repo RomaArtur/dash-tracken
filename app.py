@@ -24,7 +24,7 @@ from views.overview import render_overview
 
 setup_logging()
 
-st.set_page_config(page_title="Tracken Analytics", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Tracken Analytics", page_icon=":material/monitoring:", layout="wide")
 
 init_schema()
 inject_css()
@@ -32,9 +32,15 @@ inject_css()
 with st.sidebar:
     render_sidebar_brand()
 
-overview_page = st.Page(render_overview, title="Visão Geral", icon="📊", url_path="visao-geral", default=True)
-import_page = st.Page(render_import_page, title="Importar Dados", icon="📥", url_path="importar-dados")
-history_page = st.Page(render_import_history, title="Histórico de Importações", icon="🕘", url_path="historico-importacoes")
+overview_page = st.Page(
+    render_overview, title="Visão Geral", icon=":material/space_dashboard:", url_path="visao-geral", default=True
+)
+import_page = st.Page(
+    render_import_page, title="Importar Dados", icon=":material/upload_file:", url_path="importar-dados"
+)
+history_page = st.Page(
+    render_import_history, title="Histórico de Importações", icon=":material/history:", url_path="historico-importacoes"
+)
 
 metric_pages = [
     st.Page(
@@ -45,6 +51,11 @@ metric_pages = [
     )
     for metric in METRICS.values()
 ]
+
+# Exposto para views/overview.py montar os links de "ver detalhes" por
+# métrica via st.page_link (que exige o objeto StreamlitPage, não só a
+# URL, para páginas registradas programaticamente como estas).
+st.session_state["_metric_pages"] = dict(zip(METRICS.keys(), metric_pages))
 
 navigation = st.navigation(
     {

@@ -1,48 +1,67 @@
 /* ============================================================
    Tracken Analytics — tema visual
-   Paleta extraída das apresentações da marca (Canva):
-     verde  #28A828  (ação, crescimento, identidade principal)
-     roxo   #8848D8  (acento secundário)
-     navy   #22305E  (parceiro do gradiente de assinatura)
-     creme  #FCFCFA  (fundo — "branco com personalidade")
+   Paleta: verde #28A828 (ação, acento do Login), roxo #9A5FE0
+   (acento do Pop-up), navy #22305E (estrutura/chrome, nunca dado).
+
+   Cores claro/escuro resolvidas via light-dark(), que acompanha o
+   `color-scheme` que o próprio Streamlit define na raiz do app —
+   ou seja, segue tanto o seletor de tema nativo (Settings > Tema)
+   quanto a preferência do sistema operacional, sem JS nenhum aqui.
    ============================================================ */
 
 :root {
-    --tk-bg: #FCFCFA;
-    --tk-surface: #FFFFFF;
-    --tk-border: #EAEAE3;
-    --tk-ink: #16181D;
-    --tk-ink-secondary: #676B72;
-    --tk-ink-muted: #9A9EA6;
-    --tk-green: #28A828;
-    --tk-green-dark: #1E8A1E;
-    --tk-green-tint: #E8F6E6;
-    --tk-purple: #8848D8;
-    --tk-purple-tint: #F1E9FB;
-    --tk-navy: #22305E;
-    --tk-negative: #D64545;
-    --tk-negative-tint: #FBEAEA;
-    --tk-radius: 16px;
-    --tk-shadow: 0 1px 2px rgba(22, 24, 29, 0.04), 0 8px 24px rgba(22, 24, 29, 0.03);
+    --tk-bg: light-dark(#FCFCFA, #14161A);
+    --tk-surface: light-dark(#FFFFFF, #1C1F24);
+    --tk-border: light-dark(#EAEAE3, #2A2E35);
+    --tk-ink: light-dark(#16181D, #EDEEF0);
+    --tk-ink-secondary: light-dark(#676B72, #A7ACB5);
+    --tk-ink-muted: light-dark(#9A9EA6, #7C828C);
+
+    --tk-green: light-dark(#28A828, #45C245);
+    --tk-green-dark: light-dark(#1E8A1E, #57D157);
+    --tk-purple: #9A5FE0;
+    --tk-navy: light-dark(#22305E, #7E92CC);
+    --tk-negative: light-dark(#D64545, #F06B6B);
+
+    --tk-radius-chip: 6px;
+    --tk-radius-ctl: 10px;
+    --tk-radius-surf: 14px;
+    --tk-radius-pill: 999px;
+
+    --tk-space-1: 4px;
+    --tk-space-2: 8px;
+    --tk-space-3: 12px;
+    --tk-space-4: 16px;
+    --tk-space-5: 20px;
+    --tk-space-6: 24px;
+    --tk-space-8: 32px;
+
+    --tk-shadow: 0 1px 2px rgba(22, 24, 29, .04), 0 8px 24px rgba(22, 24, 29, .03);
 }
 
-html, body, [class*="css"] {
-    font-family: "Inter", "Segoe UI", -apple-system, sans-serif;
+/* Fallback para navegadores sem light-dark() (Baseline desde meados de
+   2024) — só segue a preferência do sistema, não o toggle manual. */
+@supports not (color: light-dark(#fff, #000)) {
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --tk-bg: #14161A;
+            --tk-surface: #1C1F24;
+            --tk-border: #2A2E35;
+            --tk-ink: #EDEEF0;
+            --tk-ink-secondary: #A7ACB5;
+            --tk-ink-muted: #7C828C;
+            --tk-green: #45C245;
+            --tk-green-dark: #57D157;
+            --tk-navy: #7E92CC;
+            --tk-negative: #F06B6B;
+        }
+    }
 }
 
-/* ---------- superfícies ---------- */
-
-[data-testid="stAppViewContainer"] {
-    background-color: var(--tk-bg);
-}
+/* ---------- layout base ---------- */
 
 [data-testid="stHeader"] {
     background-color: rgba(0, 0, 0, 0);
-}
-
-[data-testid="stSidebar"] {
-    background-color: var(--tk-surface);
-    border-right: 1px solid var(--tk-border);
 }
 
 [data-testid="stMainBlockContainer"] {
@@ -51,21 +70,20 @@ html, body, [class*="css"] {
 
 /* ---------- tipografia ---------- */
 
-h1, h2, h3 {
-    color: var(--tk-ink);
+h1 {
+    color: var(--tk-navy);
     font-weight: 700;
     letter-spacing: -0.015em;
-}
-
-h1 {
     font-size: 1.6rem !important;
 }
 
 h2, h3 {
-    font-size: 1.05rem !important;
     color: var(--tk-ink-secondary);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    font-size: 1.05rem !important;
     text-transform: none;
-    margin-top: 0.5rem;
+    margin-top: var(--tk-space-2);
 }
 
 [data-testid="stCaptionContainer"] {
@@ -76,7 +94,7 @@ h2, h3 {
 
 [data-testid="stSidebarNav"] a,
 [data-testid="stSidebarNavLink"] {
-    border-radius: 10px !important;
+    border-radius: var(--tk-radius-ctl) !important;
     margin: 2px 0;
     color: var(--tk-ink-secondary) !important;
     font-weight: 500;
@@ -84,107 +102,54 @@ h2, h3 {
 
 [data-testid="stSidebarNav"] a:hover,
 [data-testid="stSidebarNavLink"]:hover {
-    background-color: var(--tk-green-tint) !important;
+    background-color: color-mix(in srgb, var(--tk-green) 12%, transparent) !important;
     color: var(--tk-green-dark) !important;
 }
 
 [data-testid="stSidebarNav"] a[aria-current="page"],
 [data-testid="stSidebarNavLink"][aria-current="page"] {
-    background-color: var(--tk-green-tint) !important;
+    background-color: color-mix(in srgb, var(--tk-green) 12%, transparent) !important;
     color: var(--tk-green-dark) !important;
     font-weight: 600;
 }
 
-/* ---------- cards de KPI customizados (components/cards.py) ---------- */
+/* ---------- ícones (Material Symbols, já embutido pelo Streamlit) ---------- */
 
-.tk-stat-card {
-    background-color: var(--tk-surface);
-    border: 1px solid var(--tk-border);
-    border-radius: var(--tk-radius);
-    padding: 18px 20px;
-    box-shadow: var(--tk-shadow);
-    height: 100%;
-}
-
-.tk-stat-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 14px;
-}
-
-.tk-stat-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    background-color: var(--tk-green-tint);
-}
-
-.tk-stat-icon.tk-purple-bg {
-    background-color: var(--tk-purple-tint);
-}
-
-.tk-stat-label {
-    font-size: 0.82rem;
-    color: var(--tk-ink-secondary);
-    font-weight: 500;
-}
-
-.tk-stat-value {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: var(--tk-ink);
-    line-height: 1.1;
-    margin-bottom: 8px;
-}
-
-.tk-stat-delta {
+.tk-icon {
+    font-family: "Material Symbols Rounded";
+    font-weight: 400;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    white-space: nowrap;
+    direction: ltr;
+    font-feature-settings: "liga";
+    -webkit-font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    padding: 3px 9px;
-    border-radius: 999px;
-}
-
-.tk-stat-delta.up {
-    background-color: var(--tk-green-tint);
-    color: var(--tk-green-dark);
-}
-
-.tk-stat-delta.down {
-    background-color: var(--tk-negative-tint);
-    color: var(--tk-negative);
-}
-
-.tk-stat-delta.flat {
-    background-color: #F1F1EE;
-    color: var(--tk-ink-muted);
-}
-
-.tk-stat-sub {
-    font-size: 0.76rem;
-    color: var(--tk-ink-muted);
-    margin-left: 6px;
+    justify-content: center;
 }
 
 /* ---------- hero card (visão geral) ---------- */
 
 .tk-hero {
-    background: linear-gradient(135deg, var(--tk-green) 0%, var(--tk-purple) 100%);
-    border-radius: var(--tk-radius);
-    padding: 24px 26px;
+    background: linear-gradient(135deg, var(--tk-navy) 0%, var(--tk-green) 100%);
+    border-radius: var(--tk-radius-surf);
+    padding: var(--tk-space-6);
     color: #FFFFFF;
-    height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    gap: var(--tk-space-2);
     box-shadow: var(--tk-shadow);
+    margin-bottom: var(--tk-space-5);
+}
+
+.tk-hero-icon {
+    font-size: 1.3rem;
+    opacity: 0.85;
+    margin-bottom: var(--tk-space-1);
 }
 
 .tk-hero-label {
@@ -205,65 +170,49 @@ h2, h3 {
     opacity: 0.85;
 }
 
-/* ---------- containers padrão do streamlit usados como "cards" ---------- */
+/* ---------- logo (chip branco — garante contraste com o pin/wordmark
+   pretos da marca em qualquer tema, sem precisar de um arquivo extra) ---------- */
+
+[data-testid="stSidebar"] [data-testid="stLogo"] {
+    background-color: #FFFFFF;
+    border-radius: var(--tk-radius-ctl);
+    padding: var(--tk-space-2) var(--tk-space-3);
+}
+
+/* ---------- superfícies nativas unificadas (mesmo raio pra tudo que é "card") ---------- */
+
+[data-testid="stMetric"],
+div[data-testid="stExpander"],
+[data-testid="stDataFrame"],
+[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: var(--tk-radius-surf);
+}
 
 [data-testid="stDataFrame"] {
-    border: 1px solid var(--tk-border);
-    border-radius: 12px;
     overflow: hidden;
 }
 
-div[data-testid="stExpander"] {
-    border: 1px solid var(--tk-border);
-    border-radius: 12px;
-    background-color: var(--tk-surface);
+/* acento por métrica: aplicado via st.container(key="tk-accent-<acento>-N"),
+   que o Streamlit expõe como classe "st-key-tk-accent-<acento>-N" no DOM */
+
+[class*="st-key-tk-accent-green"] [data-testid="stMetricIcon"] {
+    background: color-mix(in srgb, var(--tk-green) 14%, transparent);
+    color: var(--tk-green-dark);
 }
 
-[data-testid="stMetric"] {
-    background-color: var(--tk-surface);
-    border: 1px solid var(--tk-border);
-    border-radius: var(--tk-radius);
-    padding: 16px 18px;
-    box-shadow: var(--tk-shadow);
+[class*="st-key-tk-accent-purple"] [data-testid="stMetricIcon"] {
+    background: color-mix(in srgb, var(--tk-purple) 16%, transparent);
+    color: var(--tk-purple);
 }
 
-[data-testid="stMetricLabel"] {
-    font-size: 0.82rem;
-    color: var(--tk-ink-secondary);
-    font-weight: 500;
+[class*="st-key-tk-accent-navy"] [data-testid="stMetricIcon"] {
+    background: color-mix(in srgb, var(--tk-navy) 14%, transparent);
+    color: var(--tk-navy);
 }
 
-[data-testid="stMetricValue"] {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: var(--tk-ink);
-}
-
-/* ---------- tabs ---------- */
-
-button[data-baseweb="tab"] {
-    font-weight: 500;
-}
-
-[data-testid="stTabs"] [aria-selected="true"] {
-    color: var(--tk-green-dark) !important;
-}
-
-[data-baseweb="tab-highlight"] {
-    background-color: var(--tk-green) !important;
-}
-
-/* ---------- botões ---------- */
-
-button[kind="primary"] {
-    border-radius: 8px;
-    background-color: var(--tk-green);
-    border-color: var(--tk-green);
-}
-
-button[kind="primary"]:hover {
-    background-color: var(--tk-green-dark);
-    border-color: var(--tk-green-dark);
+[class*="st-key-tk-accent-negative"] [data-testid="stMetricIcon"] {
+    background: color-mix(in srgb, var(--tk-negative) 16%, transparent);
+    color: var(--tk-negative);
 }
 
 hr {
@@ -271,8 +220,43 @@ hr {
     border-color: var(--tk-border);
 }
 
-/* ---------- remove o chrome padrão do Streamlit (barra "Deploy") ---------- */
+/* ---------- responsivo (mesmos breakpoints que o Streamlit já usa) ---------- */
 
-[data-testid="stToolbar"] {
-    visibility: hidden;
+@media (max-width: 768px) {
+    [data-testid="stMainBlockContainer"] {
+        padding-top: 1rem;
+        padding-left: var(--tk-space-4);
+        padding-right: var(--tk-space-4);
+    }
+
+    h1 {
+        font-size: 1.3rem !important;
+    }
+
+    .tk-hero {
+        padding: var(--tk-space-4);
+    }
+
+    .tk-hero-value {
+        font-size: 1.6rem;
+    }
+
+    [data-testid="stSidebarNav"] a,
+    [data-testid="stSidebarNavLink"],
+    [data-testid="stBaseButton-primary"],
+    [data-testid="stBaseButton-secondary"] {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 640px) {
+    .tk-hero {
+        gap: var(--tk-space-1);
+    }
+}
+
+@media (max-width: 576px) {
+    [data-testid="stMetricDeltaDescription"] {
+        display: none;
+    }
 }

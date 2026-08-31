@@ -114,6 +114,45 @@ def history_span(daily_frames: list[pd.DataFrame]) -> tuple[int, date, date] | N
     return (latest - earliest).days + 1, earliest, latest
 
 
+def combined_daily(series_by_metric: dict[str, pd.DataFrame], metrics: list[MetricDefinition]) -> pd.DataFrame:
+    """Combina as séries diárias de várias métricas em um único
+    DataFrame largo (colunas: date, <chave_da_métrica>...), usado pelo
+    gráfico de colunas agrupadas da Visão Geral (charts.grouped_columns)
+    que compara as métricas lado a lado em vez de abas separadas."""
+    combined: pd.DataFrame | None = None
+    for metric in metrics:
+        df = series_by_metric.get(metric.key)
+        col = (
+            df.rename(columns={"value": metric.key})[["date", metric.key]]
+            if df is not None and not df.empty
+            else pd.DataFrame(columns=["date", metric.key])
+        )
+        combined = col if combined is None else combined.merge(col, on="date", how="outer")
+    if combined is None or combined.empty:
+        return pd.DataFrame(columns=["date", *(m.key for m in metrics)])
+    for metric in metrics:
+        combined[metric.key] = combined[metric.key].fillna(0.0).astype(float)
+    return combined.sort_values("date").reset_index(drop=True)
+
+
+def combined_weekly(
+    series_by_metric: dict[str, pd.DataFrame], metrics: list[MetricDefinition], n_weeks: int = 8
+) -> pd.DataFrame:
+    """Igual a combined_daily, mas agregado por semana (colunas:
+    semana, <chave_da_métrica>...), reaproveitando weekly_comparison
+    por métrica."""
+    combined: pd.DataFrame | None = None
+    for metric in metrics:
+        df = series_by_metric.get(metric.key, pd.DataFrame(columns=["date", "value"]))
+        weekly = weekly_comparison(df, n_weeks=n_weeks).rename(columns={"value": metric.key})
+        combined = weekly if combined is None else combined.merge(weekly, on="semana", how="outer")
+    if combined is None or combined.empty:
+        return pd.DataFrame(columns=["semana", *(m.key for m in metrics)])
+    for metric in metrics:
+        combined[metric.key] = combined[metric.key].fillna(0.0).astype(float)
+    return combined.sort_values("semana").reset_index(drop=True)
+
+
 def weekly_comparison(daily_df: pd.DataFrame, n_weeks: int = 8) -> pd.DataFrame:
     """Agrega os valores por semana (iniciando na segunda-feira) para
     permitir comparação semana a semana."""

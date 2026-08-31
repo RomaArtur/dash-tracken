@@ -67,7 +67,7 @@ def validate(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 DEFINITION = MetricDefinition(
     key=KEY,
     label="Login",
-    icon="🔐",
+    icon=":material/login:",
     table_name="metric_login_daily",
     key_columns=("date",),
     value_columns=("total_logins",),
@@ -76,4 +76,5 @@ DEFINITION = MetricDefinition(
     parse=parse,
     validate=validate,
     ranking_dimensions=None,
+    accent="green",
 )

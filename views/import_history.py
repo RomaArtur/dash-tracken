@@ -10,13 +10,13 @@ from services.database import get_connection
 
 
 def render_import_history() -> None:
-    st.title("🕘 Histórico de Importações")
+    st.title("Histórico de Importações")
 
     conn = get_connection()
     runs = import_repository.list_runs(conn)
 
     if runs.empty:
-        st.info("Nenhuma importação realizada ainda.")
+        st.info("Nenhuma importação realizada ainda.", icon=":material/inbox:")
         return
 
     runs = runs.copy()
@@ -39,4 +39,7 @@ def render_import_history() -> None:
         runs[list(display_cols.keys())].rename(columns=display_cols),
         width="stretch",
         hide_index=True,
+        column_config={
+            "Data/Hora": st.column_config.DatetimeColumn(format="DD/MM/YYYY HH:mm"),
+        },
     )

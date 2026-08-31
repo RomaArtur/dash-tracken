@@ -126,7 +126,7 @@ def validate(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 DEFINITION = MetricDefinition(
     key=KEY,
     label="Pop-up",
-    icon="🔔",
+    icon=":material/ads_click:",
     table_name="metric_popup_daily",
     key_columns=("date", "coduser", "codemp"),
     value_columns=("cliques", "primeiro_clique", "ultimo_clique"),
@@ -135,4 +135,5 @@ DEFINITION = MetricDefinition(
     parse=parse,
     validate=validate,
     ranking_dimensions={"codemp": "Empresa", "coduser": "Usuário"},
+    accent="purple",
 )

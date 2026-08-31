@@ -10,7 +10,7 @@ sem duplicar lógica.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Mapping, Sequence
+from typing import Callable, Literal, Mapping, Sequence
 
 import pandas as pd
 
@@ -25,7 +25,8 @@ class MetricDefinition:
     """Nome exibido na interface, ex.: 'Login'."""
 
     icon: str
-    """Emoji usado na navegação e nos títulos das páginas."""
+    """Token de ícone Material Symbols no formato ':material/nome:',
+    aceito nativamente por st.Page, st.metric, st.page_link etc."""
 
     table_name: str
     """Nome da tabela Postgres onde os registros normalizados são persistidos."""
@@ -59,3 +60,9 @@ class MetricDefinition:
     """Dimensões disponíveis para ranking/top-N, mapeando
     coluna -> rótulo (ex.: {'codemp': 'Empresa'}). None se a métrica não
     tiver dimensão além da data (caso do login)."""
+
+    accent: Literal["green", "purple", "navy"] = "green"
+    """Papel semântico de cor da métrica em toda a UI (nav, cards de
+    KPI, gráficos). Cada métrica deve usar um valor distinto para
+    permanecer distinguível quando comparada a outras no mesmo gráfico
+    (ver components/charts.py: line_multi, grouped_columns)."""
