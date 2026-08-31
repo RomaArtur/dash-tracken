@@ -134,7 +134,8 @@ h2, h3 {
 /* ---------- hero card (visão geral) ---------- */
 
 .tk-hero {
-    background: linear-gradient(135deg, var(--tk-navy) 0%, var(--tk-green) 100%);
+    --tk-hero-accent: var(--tk-green);
+    background: linear-gradient(135deg, var(--tk-navy) 0%, var(--tk-hero-accent) 100%);
     border-radius: var(--tk-radius-surf);
     padding: var(--tk-space-6);
     color: #FFFFFF;
@@ -144,6 +145,7 @@ h2, h3 {
     gap: var(--tk-space-2);
     box-shadow: var(--tk-shadow);
     margin-bottom: var(--tk-space-5);
+    height: 100%;
 }
 
 .tk-hero-icon {
@@ -170,8 +172,14 @@ h2, h3 {
     opacity: 0.85;
 }
 
-/* ---------- logo (chip branco — garante contraste com o pin/wordmark
-   pretos da marca em qualquer tema, sem precisar de um arquivo extra) ---------- */
+/* ---------- logo ----------
+   Claro: wordmark padrão (texto preto) num chip branco, pro contraste.
+   Escuro: troca pra variante branca/verde (sem chip — a Streamlit
+   Cloud precisa de server.enableStaticServing=true pra servir
+   static/logo-wordmark-dark.png neste caminho). Só segue a preferência
+   do sistema operacional (@media), não o toggle manual de tema dentro
+   do app — CSS puro não tem como enxergar esse toggle para trocar a
+   imagem (só cores, via light-dark(), o que não é suficiente aqui). */
 
 [data-testid="stSidebarLogo"] {
     height: 5.5rem;
@@ -182,6 +190,14 @@ h2, h3 {
     padding: var(--tk-space-3) var(--tk-space-4);
     margin: var(--tk-space-3) var(--tk-space-2) var(--tk-space-2);
     box-sizing: content-box;
+}
+
+@media (prefers-color-scheme: dark) {
+    [data-testid="stSidebarLogo"] {
+        content: url("app/static/logo-wordmark-dark.png");
+        background-color: transparent;
+        padding: var(--tk-space-3) 0;
+    }
 }
 
 /* ---------- superfícies nativas unificadas (mesmo raio pra tudo que é "card") ---------- */

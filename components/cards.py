@@ -10,8 +10,10 @@ O comparativo com o período anterior (delta) foi removido por decisão
 do usuário — kpi.delta_pct continua calculado em services/metrics_service.py
 (usado em outros lugares), só não é mais exibido aqui.
 
-O hero card ("Histórico acumulado") é o único que continua HTML
-customizado, por não ter equivalente nativo.
+O hero card ("Histórico acumulado") e os cards de total acumulado por
+métrica são HTML customizado (gradiente navy -> acento da métrica) —
+não têm equivalente nativo, e são deliberadamente "notas" visuais, sem
+gráfico, diferente dos cards de KPI por período.
 """
 from __future__ import annotations
 
@@ -22,6 +24,13 @@ import streamlit as st
 
 from metrics.base import MetricDefinition
 from services.metrics_service import KPI
+from utils.icons import material_name
+
+_ACCENT_VARS = {
+    "green": "var(--tk-green)",
+    "purple": "var(--tk-purple)",
+    "navy": "var(--tk-navy)",
+}
 
 
 def _format_number(value: float) -> str:
@@ -68,16 +77,26 @@ def kpi_row(
             )
 
 
-def hero_card(label: str, value: str, sub: str = "", icon: str = "database") -> None:
+def hero_card(label: str, value: str, sub: str = "", icon: str = "database", accent: str = "green") -> None:
+    accent_var = _ACCENT_VARS.get(accent, _ACCENT_VARS["green"])
+    sub_html = f'<div class="tk-hero-sub">{html.escape(sub)}</div>' if sub else ""
     st.html(
         f"""
-        <div class="tk-hero">
+        <div class="tk-hero" style="--tk-hero-accent: {accent_var};">
             <div>
                 <span class="tk-icon tk-hero-icon">{html.escape(icon)}</span>
                 <div class="tk-hero-label">{html.escape(label)}</div>
                 <div class="tk-hero-value">{html.escape(value)}</div>
             </div>
-            <div class="tk-hero-sub">{html.escape(sub)}</div>
+            {sub_html}
         </div>
         """
     )
+
+
+def total_card(label: str, value: float, *, icon: str, accent: str = "green") -> None:
+    """Card estilo 'nota' (gradiente navy -> acento da métrica), mesma
+    linguagem visual do hero_card — total acumulado de uma métrica,
+    sem gráfico, para diferenciar visualmente do card de KPI por
+    período (que tem sparkline)."""
+    hero_card(label, _format_number(value), icon=material_name(icon), accent=accent)

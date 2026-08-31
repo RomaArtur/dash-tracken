@@ -30,6 +30,7 @@ dataframeHeaderBackgroundColor = "#22262D"
 [server]
 headless = true
 runOnSave = true
+enableStaticServing = true
 
 [browser]
 gatherUsageStats = false

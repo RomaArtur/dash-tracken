@@ -50,18 +50,18 @@ def render_overview() -> None:
             f"{earliest.strftime('%d/%m/%Y')} → {latest.strftime('%d/%m/%Y')} · {last_import_sub}",
         )
 
-    cards.kpi_row(kpis, metrics, sparklines)
-
-    total_kpis = [
-        ms.KPI(label=metric.label, current=ms.total_all_time(series_by_metric[metric.key]), previous=0.0)
-        for metric in metrics
-    ]
-    total_sparklines = [
-        series_by_metric[metric.key]["value"] if not series_by_metric[metric.key].empty else None
-        for metric in metrics
-    ]
     st.subheader("Total acumulado")
-    cards.kpi_row(total_kpis, metrics, total_sparklines, key_prefix="total")
+    total_cols = st.columns(len(metrics))
+    for col, metric in zip(total_cols, metrics):
+        with col:
+            cards.total_card(
+                metric.label,
+                ms.total_all_time(series_by_metric[metric.key]),
+                icon=metric.icon,
+                accent=metric.accent,
+            )
+
+    cards.kpi_row(kpis, metrics, sparklines)
 
     st.divider()
     st.subheader("Login e Pop-up")
