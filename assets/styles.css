@@ -142,7 +142,6 @@ h2, h3 {
 
 .tk-hero {
     --tk-hero-accent: var(--tk-green);
-    background: linear-gradient(135deg, var(--tk-hero-base) 0%, var(--tk-hero-accent) 100%);
     border-radius: var(--tk-radius-surf);
     padding: var(--tk-space-6);
     color: #FFFFFF;
@@ -153,6 +152,23 @@ h2, h3 {
     box-shadow: var(--tk-shadow);
     margin-bottom: var(--tk-space-5);
     height: 100%;
+}
+
+/* "Histórico acumulado": card estrutural (não é de uma métrica
+   específica), mantém navy -> acento. */
+.tk-hero-structural {
+    background: linear-gradient(135deg, var(--tk-hero-base) 0%, var(--tk-hero-accent) 100%);
+}
+
+/* Cards de "Total acumulado" por métrica: gradiente monocromático
+   (tom escuro do próprio acento -> acento), sem navy — evitar
+   qualquer leitura de "roxo" no card do Login, que é verde. */
+.tk-hero-mono {
+    background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--tk-hero-accent) 45%, black) 0%,
+        var(--tk-hero-accent) 100%
+    );
 }
 
 .tk-hero-icon {

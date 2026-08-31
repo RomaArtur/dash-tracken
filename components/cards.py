@@ -78,11 +78,15 @@ def kpi_row(
 
 
 def hero_card(label: str, value: str, sub: str = "", icon: str = "database", accent: str = "green") -> None:
+    """Card estrutural (não é de uma métrica específica) — gradiente
+    navy -> acento. Único caso que usa navy: os cards por métrica
+    (total_card) são monocromáticos, para não parecer roxo no card do
+    Login nem verde no do Pop-up."""
     accent_var = _ACCENT_VARS.get(accent, _ACCENT_VARS["green"])
     sub_html = f'<div class="tk-hero-sub">{html.escape(sub)}</div>' if sub else ""
     st.html(
         f"""
-        <div class="tk-hero" style="--tk-hero-accent: {accent_var};">
+        <div class="tk-hero tk-hero-structural" style="--tk-hero-accent: {accent_var};">
             <div>
                 <span class="tk-icon tk-hero-icon">{html.escape(icon)}</span>
                 <div class="tk-hero-label">{html.escape(label)}</div>
@@ -95,8 +99,19 @@ def hero_card(label: str, value: str, sub: str = "", icon: str = "database", acc
 
 
 def total_card(label: str, value: float, *, icon: str, accent: str = "green") -> None:
-    """Card estilo 'nota' (gradiente navy -> acento da métrica), mesma
-    linguagem visual do hero_card — total acumulado de uma métrica,
-    sem gráfico, para diferenciar visualmente do card de KPI por
-    período (que tem sparkline)."""
-    hero_card(label, _format_number(value), icon=material_name(icon), accent=accent)
+    """Card estilo 'nota' para o total acumulado de UMA métrica —
+    gradiente monocromático (tom escuro do próprio acento -> acento),
+    sem navy, para o card do Login ficar só verde e o do Pop-up só
+    roxo, em claro e escuro."""
+    accent_var = _ACCENT_VARS.get(accent, _ACCENT_VARS["green"])
+    st.html(
+        f"""
+        <div class="tk-hero tk-hero-mono" style="--tk-hero-accent: {accent_var};">
+            <div>
+                <span class="tk-icon tk-hero-icon">{html.escape(material_name(icon))}</span>
+                <div class="tk-hero-label">{html.escape(label)}</div>
+                <div class="tk-hero-value">{html.escape(_format_number(value))}</div>
+            </div>
+        </div>
+        """
+    )
