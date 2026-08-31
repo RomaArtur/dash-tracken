@@ -7,6 +7,22 @@ importação de JSON soma-se ao que já existe, sem duplicar registros.
 
 ## Como executar
 
+Na primeira execução (qualquer um dos modos abaixo) o banco
+`data/analytics.duckdb` é criado automaticamente (schema vazio). Ele
+**não é versionado** — é o histórico consolidado local de cada
+máquina/ambiente.
+
+### Local (Windows)
+
+```powershell
+.\scripts\run_local.ps1
+```
+
+O script cria o `.venv` se não existir, instala/atualiza as
+dependências e sobe o Streamlit em `http://localhost:8501`.
+
+Alternativa manual:
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate        # Windows
@@ -16,9 +32,31 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Na primeira execução o banco `data/analytics.duckdb` é criado
-automaticamente (schema vazio). Ele **não é versionado** — é o
-histórico consolidado local de cada máquina/ambiente.
+### Docker
+
+```bash
+docker build -t dash-tracken .
+docker run -p 8501:8501 -v dash-tracken-data:/app/data dash-tracken
+```
+
+O volume `dash-tracken-data` garante que `analytics.duckdb` sobrevive a
+`docker run`/restart do container — sem ele, os dados importados
+seriam perdidos a cada novo container.
+
+### Produção (Render)
+
+O repositório tem um `render.yaml` (Blueprint) que provisiona:
+
+- um Web Service Docker a partir deste `Dockerfile`;
+- um **Persistent Disk** de 1GB montado em `/app/data`, para o
+  `analytics.duckdb` sobreviver a redeploys — sem isso, qualquer novo
+  deploy apagaria todo o histórico importado (disco de containers é
+  efêmero por padrão).
+
+Para publicar: conecte este repositório GitHub à sua conta Render e
+aplique o Blueprint (New → Blueprint → selecione `dash-tracken`). Não
+há variáveis de ambiente obrigatórias — a porta é lida de `$PORT`,
+que a Render injeta automaticamente.
 
 ## Fluxo de uso
 
