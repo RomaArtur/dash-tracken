@@ -187,4 +187,5 @@ DEFINITION = MetricDefinition(
     accent="blue",
     file_format="csv",
     render_summary=render_summary,
+    show_trend_charts=False,
 )

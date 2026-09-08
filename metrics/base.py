@@ -77,6 +77,12 @@ class MetricDefinition:
     normalmente dependem de metadados que não vêm do arquivo (ver
     `parse` e `context` acima)."""
 
+    show_trend_charts: bool = True
+    """Se False, `views/metric_page.py` não renderiza os blocos de
+    'Evolução' e 'Comparação semanal' — usado por métricas cujo resumo
+    próprio (ver `render_summary`) já cobre o que essas seções
+    mostrariam, tornando-as redundantes (ex.: Disparos E-mail)."""
+
     render_summary: Callable[[str | None, date, date], None] | None = None
     """Hook de UI opcional: se definido, `views/metric_page.py` chama
     essa função (recebendo o valor selecionado no filtro da primeira

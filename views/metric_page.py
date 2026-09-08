@@ -42,30 +42,31 @@ def render_metric_page(metric_key: str) -> None:
         )
         cards.kpi_row([kpi], [metric], [period_df["value"] if not period_df.empty else None])
 
-    with st.container(border=True):
-        st.subheader("Evolução")
-        if period_df.empty:
-            st.info("Sem dados para o período selecionado.")
-        else:
-            st.plotly_chart(
-                charts.line_evolution(period_df, accent=metric.accent),
-                width="stretch",
-                theme="streamlit",
-                height=320,
-            )
+    if metric.show_trend_charts:
+        with st.container(border=True):
+            st.subheader("Evolução")
+            if period_df.empty:
+                st.info("Sem dados para o período selecionado.")
+            else:
+                st.plotly_chart(
+                    charts.line_evolution(period_df, accent=metric.accent),
+                    width="stretch",
+                    theme="streamlit",
+                    height=320,
+                )
 
-    with st.container(border=True):
-        st.subheader("Comparação semanal")
-        weekly_df = ms.weekly_comparison(daily_df)
-        if weekly_df.empty:
-            st.info("Sem dados suficientes para comparação semanal.")
-        else:
-            st.plotly_chart(
-                charts.weekly_bar(weekly_df, accent=metric.accent),
-                width="stretch",
-                theme="streamlit",
-                height=320,
-            )
+        with st.container(border=True):
+            st.subheader("Comparação semanal")
+            weekly_df = ms.weekly_comparison(daily_df)
+            if weekly_df.empty:
+                st.info("Sem dados suficientes para comparação semanal.")
+            else:
+                st.plotly_chart(
+                    charts.weekly_bar(weekly_df, accent=metric.accent),
+                    width="stretch",
+                    theme="streamlit",
+                    height=320,
+                )
 
     if metric.ranking_dimensions and dim_value is None:
         with st.container(border=True):
