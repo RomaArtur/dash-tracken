@@ -34,13 +34,15 @@ class KPI:
         return (self.delta / self.previous) * 100
 
 
-def load_daily_series(metric: MetricDefinition) -> pd.DataFrame:
+def load_daily_series(metric: MetricDefinition, filters: dict[str, str] | None = None) -> pd.DataFrame:
     """Retorna todo o histórico da métrica agregado por dia, colunas
-    [date, value]. O cache do Streamlit fica na camada de página
-    (st.cache_data), não aqui, para que uma nova importação invalide o
-    cache corretamente."""
+    [date, value]. `filters` restringe a uma dimensão (ex.:
+    {'cliente': '3dunique'}), usado pelo filtro de cliente da página de
+    métrica quando `metric.ranking_dimensions` está definido. O cache
+    do Streamlit fica na camada de página (st.cache_data), não aqui,
+    para que uma nova importação invalide o cache corretamente."""
     conn = get_connection()
-    df = metrics_repository.fetch_metric_df(conn, metric)
+    df = metrics_repository.fetch_metric_df(conn, metric, filters=filters)
     if df.empty:
         return pd.DataFrame(columns=["date", "value"])
     daily = (
@@ -55,14 +57,21 @@ def load_daily_series(metric: MetricDefinition) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
-def load_daily_series_cached(metric_key: str) -> pd.DataFrame:
+def load_daily_series_cached(metric_key: str, dimension_value: str | None = None) -> pd.DataFrame:
     """Versão cacheada de load_daily_series, indexada pela chave da
-    métrica (string, sempre hasheável). O cache é invalidado
-    explicitamente por clear_cache() sempre que uma importação altera
-    os dados — ver services/importer.py."""
+    métrica e, opcionalmente, por um valor da primeira dimensão de
+    `ranking_dimensions` (ex.: um cliente específico) — ambos strings,
+    sempre hasheáveis. O cache é invalidado explicitamente por
+    clear_cache() sempre que uma importação altera os dados — ver
+    services/importer.py."""
     from metrics import METRICS
 
-    return load_daily_series(METRICS[metric_key])
+    metric = METRICS[metric_key]
+    filters = None
+    if dimension_value is not None and metric.ranking_dimensions:
+        dim_col = next(iter(metric.ranking_dimensions))
+        filters = {dim_col: dimension_value}
+    return load_daily_series(metric, filters=filters)
 
 
 def clear_cache() -> None:

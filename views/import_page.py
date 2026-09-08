@@ -1,22 +1,72 @@
 """Página de importação: upload -> validação -> normalização -> preview
 -> confirmação. Nenhuma escrita no banco acontece antes do usuário
-clicar em 'Importar dados'."""
+clicar em 'Importar dados'.
+
+Métricas JSON (Login, Pop-up) seguem o fluxo original. Métricas CSV
+(Disparos E-mail) precisam de dois metadados que não vêm do arquivo —
+cliente e campanha — extraídos por convenção do nome do arquivo
+(`email_<cliente>_<campanha>.csv`) e sempre editáveis antes do preview,
+já que não há garantia de que o nome siga a convenção à risca."""
 from __future__ import annotations
+
+from pathlib import Path
 
 import streamlit as st
 
 from metrics import METRICS, detect_metric_from_filename
+from repositories import metrics_repository
 from services import importer
+from services.database import get_connection
+
+_NOVO_CLIENTE = "+ Novo cliente"
+
+
+def _guess_cliente_campanha(filename: str) -> tuple[str, str]:
+    """Extrai (cliente, campanha) do nome do arquivo pela convenção
+    `email_<cliente>_<campanha>.csv`. Retorna strings vazias se o nome
+    não tiver segmentos suficientes — os campos ficam em branco na tela
+    para o usuário preencher na mão."""
+    stem = Path(filename).stem
+    parts = stem.split("_", 2)
+    cliente = parts[1].strip() if len(parts) > 1 else ""
+    campanha = parts[2].strip() if len(parts) > 2 else ""
+    return cliente, campanha
+
+
+def _render_csv_metadata_inputs(metric, filename: str) -> tuple[str, str] | None:
+    """Renderiza os campos de Cliente/Campanha para métricas CSV.
+    Retorna (cliente, campanha) só quando ambos estão preenchidos,
+    None caso contrário (preview ainda não deve ser gerado)."""
+    cliente_guess, campanha_guess = _guess_cliente_campanha(filename)
+
+    existing_clientes = metrics_repository.distinct_values(get_connection(), metric.table_name, "cliente")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        options = existing_clientes + [_NOVO_CLIENTE]
+        default_index = options.index(cliente_guess) if cliente_guess in existing_clientes else len(options) - 1
+        selected = st.selectbox("Cliente", options, index=default_index)
+        if selected == _NOVO_CLIENTE:
+            cliente = st.text_input("Nome do novo cliente", value=cliente_guess)
+        else:
+            cliente = selected
+    with col2:
+        campanha = st.text_input("Campanha / ID", value=campanha_guess)
+
+    if not cliente.strip() or not campanha.strip():
+        st.info("Preencha cliente e campanha para gerar a prévia da importação.")
+        return None
+    return cliente.strip(), campanha.strip()
 
 
 def render_import_page() -> None:
     st.title("Importar Dados")
-    st.caption("Envie um arquivo JSON de métricas para atualizar o histórico do dashboard.")
+    st.caption("Envie um arquivo JSON ou CSV de métricas para atualizar o histórico do dashboard.")
 
     metric_keys = list(METRICS.keys())
     metric_labels = [METRICS[k].label for k in metric_keys]
 
-    uploaded_file = st.file_uploader("Selecione o arquivo JSON", type=["json"])
+    uploaded_file = st.file_uploader("Selecione o arquivo", type=["json", "csv"])
 
     if uploaded_file is None:
         return
@@ -30,9 +80,22 @@ def render_import_page() -> None:
     selected_key = metric_keys[metric_labels.index(selected_label)]
     metric = METRICS[selected_key]
 
+    filename_lower = uploaded_file.name.lower()
+    if not filename_lower.endswith(f".{metric.file_format}"):
+        st.error(f"Selecione um arquivo .{metric.file_format} para a métrica '{metric.label}'.")
+        return
+
+    context: dict | None = None
+    if metric.file_format == "csv":
+        metadata = _render_csv_metadata_inputs(metric, uploaded_file.name)
+        if metadata is None:
+            return
+        cliente, campanha = metadata
+        context = {"cliente": cliente, "campaign_id": campanha}
+
     try:
-        raw = importer.load_json(uploaded_file.getvalue())
-        preview = importer.build_preview(metric, uploaded_file.name, raw)
+        raw = importer.load_csv(uploaded_file.getvalue()) if metric.file_format == "csv" else importer.load_json(uploaded_file.getvalue())
+        preview = importer.build_preview(metric, uploaded_file.name, raw, context=context)
     except importer.ImportValidationError as exc:
         st.error(str(exc))
         return

@@ -74,14 +74,39 @@ logar no Streamlit) nessa tela.
 
 ## Fluxo de uso
 
-1. Abra **Importar Dados**, selecione um arquivo JSON.
+1. Abra **Importar Dados**, selecione um arquivo JSON (Login, Pop-up)
+   ou CSV (Disparos E-mail).
 2. Confira a prévia: registros encontrados, novos, existentes e
    inválidos.
 3. Clique em **Importar dados** para persistir.
 4. Vá em **Visão Geral** ou na página da métrica específica (Login,
-   Pop-up) para ver KPIs, evolução e comparação semanal.
+   Pop-up, Disparos E-mail) para ver KPIs, evolução e comparação
+   semanal.
 5. Consulte **Histórico de Importações** para auditar o que foi
    importado, quando e com que resultado.
+
+### Disparos E-mail (CSV)
+
+O CSV exportado do CRM de e-mail marketing não identifica cliente nem
+campanha — só e-mail, status de envio, leitura e datas. Por isso o
+**nome do arquivo** carrega essa informação, na convenção:
+
+```
+email_<cliente>_<campanha>.csv
+```
+
+Exemplo: `email_3dunique_11341.csv` → cliente `3dunique`, campanha
+`11341`. A tela de importação extrai os dois valores do nome do
+arquivo e os deixa editáveis antes de gerar a prévia (sugestões de
+cliente já usados aparecem num seletor, para não duplicar o mesmo
+cliente com grafias diferentes) — se o nome não seguir a convenção, os
+campos ficam em branco para preenchimento manual.
+
+A chave natural do registro é **(campanha, e-mail)**, não só e-mail —
+o mesmo destinatário pode aparecer em campanhas diferentes sem
+colidir. Reimportar o mesmo CSV depois que alguém abre o e-mail (status
+de leitura muda) atualiza o registro existente, mesmo mecanismo de
+idempotência das demais métricas.
 
 Os dois arquivos de exemplo (`data/samples/login-19-08_26-08.json` e
 `data/samples/popup-19-08_26-08.json` — fora do controle de versão, pois
@@ -121,6 +146,14 @@ metric_popup_daily (
     primeiro_clique TIMESTAMP, ultimo_clique TIMESTAMP,
     import_run_id BIGINT, updated_at TIMESTAMP NOT NULL,
     PRIMARY KEY (date, coduser, codemp)
+)
+
+metric_email_campaign (
+    campaign_id VARCHAR, cliente VARCHAR, email VARCHAR, date DATE,
+    status_envio VARCHAR, enviado INTEGER NOT NULL, lido INTEGER NOT NULL,
+    subscricao VARCHAR, data_criacao TIMESTAMP, data_envio TIMESTAMP,
+    import_run_id BIGINT, updated_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (campaign_id, email)
 )
 
 import_runs (

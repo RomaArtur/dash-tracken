@@ -68,7 +68,7 @@ def render_overview() -> None:
     cards.kpi_row(kpis, metrics, sparklines)
 
     st.divider()
-    st.subheader("Login e Pop-up")
+    st.subheader(" · ".join(metric.label for metric in metrics))
     granularity = st.segmented_control(
         "Granularidade",
         options=["Diário", "Semanal"],

@@ -164,15 +164,12 @@ def weekly_bar(df: pd.DataFrame, accent: str = "green") -> go.Figure:
     return fig
 
 
-def proportion_pie(totals: dict[str, float], metrics: list[MetricDefinition]) -> go.Figure:
-    """Rosca (donut) com a proporção de cada métrica sobre um total —
-    cor por acento, igual aos outros gráficos, com o total combinado
-    em destaque no centro."""
-    labels = [m.label for m in metrics if totals.get(m.key, 0) > 0]
-    values = [totals[m.key] for m in metrics if totals.get(m.key, 0) > 0]
-    colors = [accent_color(m.accent) for m in metrics if totals.get(m.key, 0) > 0]
+def donut_breakdown(labels: list[str], values: list[float], colors: list[str]) -> go.Figure:
+    """Rosca (donut) genérica com a soma das fatias em destaque no
+    centro — usado tanto para comparar métricas entre si (ver
+    `proportion_pie`) quanto para uma quebra dentro de uma única
+    métrica (ex.: abertos vs não abertos em metrics/email.py)."""
     combined = sum(values)
-
     fig = go.Figure(
         go.Pie(
             labels=labels,
@@ -197,6 +194,16 @@ def proportion_pie(totals: dict[str, float], metrics: list[MetricDefinition]) ->
         ],
     )
     return fig
+
+
+def proportion_pie(totals: dict[str, float], metrics: list[MetricDefinition]) -> go.Figure:
+    """Rosca (donut) com a proporção de cada métrica sobre um total —
+    cor por acento, igual aos outros gráficos, com o total combinado
+    em destaque no centro."""
+    labels = [m.label for m in metrics if totals.get(m.key, 0) > 0]
+    values = [totals[m.key] for m in metrics if totals.get(m.key, 0) > 0]
+    colors = [accent_color(m.accent) for m in metrics if totals.get(m.key, 0) > 0]
+    return donut_breakdown(labels, values, colors)
 
 
 def ranking_horizontal(

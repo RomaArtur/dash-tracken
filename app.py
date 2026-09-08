@@ -22,6 +22,7 @@ from views.import_history import render_import_history
 from views.import_page import render_import_page
 from views.metric_page import render_metric_page
 from views.overview import render_overview
+from views.whatsapp_placeholder import render_whatsapp_placeholder
 
 setup_logging()
 
@@ -58,6 +59,13 @@ metric_pages = [
     )
     for metric in METRICS.values()
 ]
+whatsapp_placeholder_page = st.Page(
+    render_whatsapp_placeholder,
+    title="Disparos WhatsApp",
+    icon=":material/chat:",
+    url_path="metrica-whatsapp",
+)
+metric_pages.append(whatsapp_placeholder_page)
 
 navigation = st.navigation(
     {

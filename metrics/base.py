@@ -10,7 +10,8 @@ sem duplicar lógica.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Literal, Mapping, Sequence
+from datetime import date
+from typing import Any, Callable, Literal, Mapping, Sequence
 
 import pandas as pd
 
@@ -46,9 +47,12 @@ class MetricDefinition:
     ddl: str
     """Instrução CREATE TABLE IF NOT EXISTS da tabela desta métrica."""
 
-    parse: Callable[[dict], pd.DataFrame]
-    """Converte o JSON bruto (já carregado com json.load) em um DataFrame
-    'largo', uma linha por registro, sem validação ainda."""
+    parse: Callable[[Any, dict], pd.DataFrame]
+    """Converte o conteúdo bruto do arquivo (dict, se JSON; DataFrame, se
+    CSV) em um DataFrame 'largo', uma linha por registro, sem validação
+    ainda. `context` carrega metadados que não vêm do arquivo em si
+    (ex.: cliente/campanha extraídos do nome do arquivo pela tela de
+    importação) — métricas JSON simplesmente ignoram esse parâmetro."""
 
     validate: Callable[[pd.DataFrame], "tuple[pd.DataFrame, pd.DataFrame]"]
     """Recebe o DataFrame de parse() e retorna (validos, invalidos)."""
@@ -61,8 +65,23 @@ class MetricDefinition:
     coluna -> rótulo (ex.: {'codemp': 'Empresa'}). None se a métrica não
     tiver dimensão além da data (caso do login)."""
 
-    accent: Literal["green", "purple", "navy"] = "green"
+    accent: Literal["green", "purple", "navy", "blue"] = "green"
     """Papel semântico de cor da métrica em toda a UI (nav, cards de
     KPI, gráficos). Cada métrica deve usar um valor distinto para
     permanecer distinguível quando comparada a outras no mesmo gráfico
     (ver components/charts.py: line_multi, grouped_columns)."""
+
+    file_format: Literal["json", "csv"] = "json"
+    """Formato de arquivo aceito na tela de importação. Métricas 'csv'
+    recebem um pandas.DataFrame já lido (não um dict) em `parse`, e
+    normalmente dependem de metadados que não vêm do arquivo (ver
+    `parse` e `context` acima)."""
+
+    render_summary: Callable[[str | None, date, date], None] | None = None
+    """Hook de UI opcional: se definido, `views/metric_page.py` chama
+    essa função (recebendo o valor selecionado no filtro da primeira
+    `ranking_dimensions`, ou None se 'Todos', e o período selecionado)
+    no lugar do KPI padrão — usado quando uma métrica precisa de um
+    resumo visual próprio (ver metrics/email.py) em vez do card
+    genérico de total do período. Mantém a UI específica dentro do
+    módulo da métrica, sem `if metric.key == ...` na página genérica."""

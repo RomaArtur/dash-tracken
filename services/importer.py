@@ -14,6 +14,7 @@ feita além do próprio registro em import_runs.
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 from dataclasses import dataclass
@@ -70,13 +71,35 @@ def load_json(file_bytes: bytes) -> dict:
         raise ImportValidationError(f"Arquivo JSON inválido: {exc}") from exc
 
 
+def load_csv(file_bytes: bytes) -> pd.DataFrame:
+    """Lê um CSV ponto-e-vírgula exportado de sistemas externos (ex.:
+    CRM de e-mail marketing). Tenta utf-8-sig primeiro (cobre o BOM que
+    editores/exportadores do Windows costumam gravar) e cai para
+    cp1252, comum em exports de ferramentas BR quando não é UTF-8."""
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            text = file_bytes.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        raise ImportValidationError("Não foi possível decodificar o arquivo CSV (encoding desconhecido).")
+
+    try:
+        return pd.read_csv(io.StringIO(text), sep=";", dtype=str)
+    except pd.errors.ParserError as exc:
+        raise ImportValidationError(f"Arquivo CSV inválido: {exc}") from exc
+
+
 def _empty_preview(metric: MetricDefinition, filename: str, parsed: pd.DataFrame) -> ImportPreview:
     return ImportPreview(metric, filename, 0, parsed, parsed, parsed, parsed, parsed)
 
 
-def build_preview(metric: MetricDefinition, filename: str, raw: dict) -> ImportPreview:
+def build_preview(
+    metric: MetricDefinition, filename: str, raw: dict | pd.DataFrame, context: dict | None = None
+) -> ImportPreview:
     try:
-        parsed = metric.parse(raw)
+        parsed = metric.parse(raw, context or {})
     except Exception as exc:
         logger.exception("Falha ao normalizar arquivo %s", filename)
         raise ImportValidationError(
@@ -191,3 +214,30 @@ def commit_import(preview: ImportPreview) -> int:
         preview.n_invalid,
     )
     return run_id
+
+
+def delete_import(run_id: int) -> int:
+    """Desfaz uma execução de importação: remove seu registro do
+    histórico e os registros de métrica que ainda apontam pra ela
+    (import_run_id) — registros já sobrescritos por uma importação mais
+    recente não são afetados, só o que essa execução específica deixou.
+    Retorna quantos registros de métrica foram removidos."""
+    conn = get_connection()
+    run = import_repository.get_run(conn, run_id)
+    if run is None:
+        raise ImportValidationError(f"Execução de importação #{run_id} não encontrada.")
+
+    from metrics import METRICS
+
+    metric = METRICS.get(run["metric_type"])
+    deleted_count = 0
+    with conn.transaction():
+        if metric is not None:
+            deleted_count = metrics_repository.delete_by_import_run(conn, metric, run_id)
+        import_repository.delete_run(conn, run_id)
+
+    from services.metrics_service import clear_cache
+
+    clear_cache()
+    logger.info("Importação #%d excluída (%s) - %d registro(s) removido(s)", run_id, run["filename"], deleted_count)
+    return deleted_count

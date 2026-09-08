@@ -13,12 +13,14 @@ são todos genéricos e operam sobre `MetricDefinition`.
 from __future__ import annotations
 
 from metrics.base import MetricDefinition
+from metrics.email import DEFINITION as EMAIL_DEFINITION
 from metrics.login import DEFINITION as LOGIN_DEFINITION
 from metrics.popup import DEFINITION as POPUP_DEFINITION
 
 METRICS: dict[str, MetricDefinition] = {
     LOGIN_DEFINITION.key: LOGIN_DEFINITION,
     POPUP_DEFINITION.key: POPUP_DEFINITION,
+    EMAIL_DEFINITION.key: EMAIL_DEFINITION,
 }
 
 

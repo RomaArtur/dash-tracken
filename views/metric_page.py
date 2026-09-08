@@ -9,7 +9,11 @@ import streamlit as st
 
 from components import cards, charts, filters
 from metrics import METRICS
+from repositories import metrics_repository
 from services import metrics_service as ms
+from services.database import get_connection
+
+_TODOS = "Todos"
 
 
 def render_metric_page(metric_key: str) -> None:
@@ -19,13 +23,24 @@ def render_metric_page(metric_key: str) -> None:
     start, end = filters.period_filter(key_prefix=metric_key)
     prev_start, prev_end = ms.previous_period(start, end)
 
-    daily_df = ms.load_daily_series_cached(metric_key)
+    dim_col = dim_label = None
+    dim_value: str | None = None
+    if metric.ranking_dimensions:
+        dim_col, dim_label = next(iter(metric.ranking_dimensions.items()))
+        options = [_TODOS] + metrics_repository.distinct_values(get_connection(), metric.table_name, dim_col)
+        selected = st.selectbox(dim_label, options, key=f"{metric_key}_dim_filter")
+        dim_value = None if selected == _TODOS else selected
+
+    daily_df = ms.load_daily_series_cached(metric_key, dim_value)
     period_df = daily_df[(daily_df["date"] >= start) & (daily_df["date"] <= end)]
 
-    kpi = ms.period_kpi(
-        daily_df, start, end, prev_start, prev_end, label=f"Total de {metric.label.lower()}"
-    )
-    cards.kpi_row([kpi], [metric], [period_df["value"] if not period_df.empty else None])
+    if metric.render_summary:
+        metric.render_summary(dim_value, start, end)
+    else:
+        kpi = ms.period_kpi(
+            daily_df, start, end, prev_start, prev_end, label=f"Total de {metric.label.lower()}"
+        )
+        cards.kpi_row([kpi], [metric], [period_df["value"] if not period_df.empty else None])
 
     with st.container(border=True):
         st.subheader("Evolução")
@@ -52,8 +67,7 @@ def render_metric_page(metric_key: str) -> None:
                 height=320,
             )
 
-    if metric.ranking_dimensions:
-        dim_col, dim_label = next(iter(metric.ranking_dimensions.items()))
+    if metric.ranking_dimensions and dim_value is None:
         with st.container(border=True):
             st.subheader(f"Ranking por {dim_label.lower()}")
             ranking_df = ms.top_dimension(metric, dim_col, start, end)

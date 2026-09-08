@@ -60,12 +60,35 @@ def upsert(
         )
 
 
+def distinct_values(conn: psycopg.Connection, table_name: str, column: str) -> list[str]:
+    """Valores distintos já persistidos numa coluna de uma tabela de
+    métrica — usado para sugerir opções já usadas (ex.: nomes de
+    cliente) na tela de importação, evitando duplicar o mesmo cliente
+    com grafias diferentes."""
+    cur = conn.execute(f"SELECT DISTINCT {column} FROM {table_name} ORDER BY {column}")
+    return [row[0] for row in cur.fetchall()]
+
+
+def delete_by_import_run(conn: psycopg.Connection, metric: MetricDefinition, run_id: int) -> int:
+    """Remove os registros que ainda apontam pra essa execução de
+    importação (import_run_id) — usado ao excluir uma importação do
+    histórico. Registros já sobrescritos por uma importação mais
+    recente (mesma chave natural, import_run_id atualizado) não são
+    afetados, só os que essa execução específica deixou como estão."""
+    cur = conn.execute(f"DELETE FROM {metric.table_name} WHERE import_run_id = %s", (run_id,))
+    return cur.rowcount
+
+
 def fetch_metric_df(
     conn: psycopg.Connection,
     metric: MetricDefinition,
     date_from: date | None = None,
     date_to: date | None = None,
+    filters: dict[str, str] | None = None,
 ) -> pd.DataFrame:
+    """`filters` aplica igualdade simples (coluna = valor) — usado para
+    restringir a uma dimensão (ex.: {'cliente': '3dunique'}) sem
+    precisar de uma query dedicada por métrica."""
     query = f"SELECT * FROM {metric.table_name}"
     conditions = []
     params: list = []
@@ -75,6 +98,9 @@ def fetch_metric_df(
     if date_to is not None:
         conditions.append(f"{metric.date_column} <= %s")
         params.append(date_to)
+    for column, value in (filters or {}).items():
+        conditions.append(f"{column} = %s")
+        params.append(value)
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
     cur = conn.execute(query, params)

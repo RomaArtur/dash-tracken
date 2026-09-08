@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS metric_popup_daily (
 """
 
 
-def parse(raw: dict) -> pd.DataFrame:
+def parse(raw: dict, context: dict | None = None) -> pd.DataFrame:
     if not isinstance(raw, dict):
         raise ValueError("O JSON de popup deve ser um objeto indexado por data.")
 

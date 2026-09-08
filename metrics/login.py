@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS metric_login_daily (
 """
 
 
-def parse(raw: dict) -> pd.DataFrame:
+def parse(raw: dict, context: dict | None = None) -> pd.DataFrame:
     if not isinstance(raw, dict):
         raise ValueError("O JSON de login deve ser um objeto no formato {'YYYY-MM-DD': total}.")
     return pd.DataFrame(
