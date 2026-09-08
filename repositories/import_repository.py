@@ -72,3 +72,16 @@ def list_runs(conn: psycopg.Connection) -> pd.DataFrame:
     cur = conn.execute("SELECT * FROM import_runs ORDER BY imported_at DESC")
     columns = [col.name for col in cur.description]
     return pd.DataFrame(cur.fetchall(), columns=columns)
+
+
+def get_run(conn: psycopg.Connection, run_id: int) -> dict | None:
+    cur = conn.execute("SELECT * FROM import_runs WHERE id = %s", (run_id,))
+    row = cur.fetchone()
+    if row is None:
+        return None
+    columns = [col.name for col in cur.description]
+    return dict(zip(columns, row))
+
+
+def delete_run(conn: psycopg.Connection, run_id: int) -> None:
+    conn.execute("DELETE FROM import_runs WHERE id = %s", (run_id,))
