@@ -188,4 +188,5 @@ DEFINITION = MetricDefinition(
     file_format="csv",
     render_summary=render_summary,
     show_trend_charts=False,
+    show_in_combined_charts=False,
 )

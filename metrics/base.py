@@ -77,6 +77,15 @@ class MetricDefinition:
     normalmente dependem de metadados que não vêm do arquivo (ver
     `parse` e `context` acima)."""
 
+    show_in_combined_charts: bool = True
+    """Se False, `views/overview.py` exclui essa métrica do gráfico
+    diário/semanal comparado e da rosca de proporção do total
+    acumulado — usado quando a escala da métrica é incompatível com as
+    demais (ex.: Disparos E-mail, com volume muito maior que Login/
+    Pop-up) e misturá-las tornaria os gráficos ilegíveis. A métrica
+    continua aparecendo nos cards de Total acumulado e no KPI do
+    período, só fica fora dos dois gráficos combinados."""
+
     show_trend_charts: bool = True
     """Se False, `views/metric_page.py` não renderiza os blocos de
     'Evolução' e 'Comparação semanal' — usado por métricas cujo resumo

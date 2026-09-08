@@ -67,8 +67,10 @@ def render_overview() -> None:
     st.subheader(f"Período selecionado — {start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}")
     cards.kpi_row(kpis, metrics, sparklines)
 
+    combined_metrics = [metric for metric in metrics if metric.show_in_combined_charts]
+
     st.divider()
-    st.subheader(" · ".join(metric.label for metric in metrics))
+    st.subheader(" · ".join(metric.label for metric in combined_metrics))
     granularity = st.segmented_control(
         "Granularidade",
         options=["Diário", "Semanal"],
@@ -77,11 +79,11 @@ def render_overview() -> None:
         label_visibility="collapsed",
     )
     if granularity == "Semanal":
-        combined_df = ms.combined_weekly(series_by_metric, metrics)
+        combined_df = ms.combined_weekly(series_by_metric, combined_metrics)
         chart_df = combined_df
         x_col = "semana"
     else:
-        combined_df = ms.combined_daily(series_by_metric, metrics)
+        combined_df = ms.combined_daily(series_by_metric, combined_metrics)
         chart_df = combined_df[(combined_df["date"] >= start) & (combined_df["date"] <= end)] if not combined_df.empty else combined_df
         x_col = "date"
 
@@ -89,19 +91,19 @@ def render_overview() -> None:
         st.info("Sem dados para exibir ainda.")
     else:
         st.plotly_chart(
-            charts.grouped_columns(chart_df, metrics, x_col=x_col),
+            charts.grouped_columns(chart_df, combined_metrics, x_col=x_col),
             width="stretch",
             theme="streamlit",
             height=360,
         )
 
     st.subheader("Proporção do total acumulado")
-    totals = {metric.key: ms.total_all_time(series_by_metric[metric.key]) for metric in metrics}
+    totals = {metric.key: ms.total_all_time(series_by_metric[metric.key]) for metric in combined_metrics}
     if not any(totals.values()):
         st.info("Sem dados para exibir ainda.")
     else:
         st.plotly_chart(
-            charts.proportion_pie(totals, metrics),
+            charts.proportion_pie(totals, combined_metrics),
             width="stretch",
             theme="streamlit",
             height=320,
