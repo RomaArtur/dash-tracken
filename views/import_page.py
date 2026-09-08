@@ -61,12 +61,12 @@ def _render_csv_metadata_inputs(metric, filename: str) -> tuple[str, str] | None
 
 def render_import_page() -> None:
     st.title("Importar Dados")
-    st.caption("Envie um arquivo JSON ou CSV de métricas para atualizar o histórico do dashboard.")
+    st.caption("Envie um arquivo JSON, CSV ou Excel de métricas para atualizar o histórico do dashboard.")
 
     metric_keys = list(METRICS.keys())
     metric_labels = [METRICS[k].label for k in metric_keys]
 
-    uploaded_file = st.file_uploader("Selecione o arquivo", type=["json", "csv"])
+    uploaded_file = st.file_uploader("Selecione o arquivo", type=["json", "csv", "xlsx"])
 
     if uploaded_file is None:
         return
@@ -94,7 +94,12 @@ def render_import_page() -> None:
         context = {"cliente": cliente, "campaign_id": campanha}
 
     try:
-        raw = importer.load_csv(uploaded_file.getvalue()) if metric.file_format == "csv" else importer.load_json(uploaded_file.getvalue())
+        if metric.file_format == "csv":
+            raw = importer.load_csv(uploaded_file.getvalue())
+        elif metric.file_format == "xlsx":
+            raw = importer.load_xlsx(uploaded_file.getvalue(), metric.xlsx_sheet)
+        else:
+            raw = importer.load_json(uploaded_file.getvalue())
         preview = importer.build_preview(metric, uploaded_file.name, raw, context=context)
     except importer.ImportValidationError as exc:
         st.error(str(exc))

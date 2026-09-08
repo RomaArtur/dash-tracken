@@ -22,6 +22,7 @@
     --tk-purple: #9A5FE0;
     --tk-navy: light-dark(#22305E, #7E92CC);
     --tk-blue: #2F6FE0;
+    --tk-amber: #D98C1F;
     --tk-negative: light-dark(#D64545, #F06B6B);
 
     /* Navy "estrutural" (--tk-navy) precisa ficar claro no escuro pra
@@ -262,6 +263,11 @@ div[data-testid="stExpander"],
 [class*="st-key-tk-accent-blue"] [data-testid="stMetricIcon"] {
     background: color-mix(in srgb, var(--tk-blue) 14%, transparent);
     color: var(--tk-blue);
+}
+
+[class*="st-key-tk-accent-amber"] [data-testid="stMetricIcon"] {
+    background: color-mix(in srgb, var(--tk-amber) 14%, transparent);
+    color: var(--tk-amber);
 }
 
 [class*="st-key-tk-accent-negative"] [data-testid="stMetricIcon"] {

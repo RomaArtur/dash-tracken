@@ -12,6 +12,8 @@ são todos genéricos e operam sobre `MetricDefinition`.
 """
 from __future__ import annotations
 
+from metrics.amazon_funnel import DEFINITION as AMAZON_FUNNEL_DEFINITION
+from metrics.amazon_traffic import DEFINITION as AMAZON_TRAFFIC_DEFINITION
 from metrics.base import MetricDefinition
 from metrics.email import DEFINITION as EMAIL_DEFINITION
 from metrics.login import DEFINITION as LOGIN_DEFINITION
@@ -21,6 +23,8 @@ METRICS: dict[str, MetricDefinition] = {
     LOGIN_DEFINITION.key: LOGIN_DEFINITION,
     POPUP_DEFINITION.key: POPUP_DEFINITION,
     EMAIL_DEFINITION.key: EMAIL_DEFINITION,
+    AMAZON_TRAFFIC_DEFINITION.key: AMAZON_TRAFFIC_DEFINITION,
+    AMAZON_FUNNEL_DEFINITION.key: AMAZON_FUNNEL_DEFINITION,
 }
 
 

@@ -206,6 +206,24 @@ def proportion_pie(totals: dict[str, float], metrics: list[MetricDefinition]) ->
     return donut_breakdown(labels, values, colors)
 
 
+def funnel_chart(stage_labels: list[str], stage_values: list[float], accent: str = "green") -> go.Figure:
+    """Funil de conversão (ex.: etapas de cadastro de vendedor) — usa
+    go.Funnel nativo do Plotly, que já cuida de desenhar a proporção
+    entre etapas e o percentual em relação à primeira."""
+    color = accent_color(accent)
+    fig = go.Figure(
+        go.Funnel(
+            y=stage_labels,
+            x=stage_values,
+            marker=dict(color=color),
+            textinfo="value+percent initial",
+            connector=dict(line=dict(color=MUTED, width=1)),
+        )
+    )
+    fig.update_layout(**_LAYOUT_DEFAULTS)
+    return fig
+
+
 def ranking_horizontal(
     df: pd.DataFrame, label_col: str, value_col: str = "value", accent: str = "green"
 ) -> go.Figure:

@@ -18,6 +18,7 @@ from metrics import METRICS
 from services.database import init_schema
 from utils.logging_config import setup_logging
 from utils.styles import inject_css
+from views.amazon_page import render_amazon_page
 from views.import_history import render_import_history
 from views.import_page import render_import_page
 from views.metric_page import render_metric_page
@@ -58,6 +59,7 @@ metric_pages = [
         url_path=f"metrica-{metric.key}",
     )
     for metric in METRICS.values()
+    if metric.standalone_page
 ]
 whatsapp_placeholder_page = st.Page(
     render_whatsapp_placeholder,
@@ -65,7 +67,14 @@ whatsapp_placeholder_page = st.Page(
     icon=":material/chat:",
     url_path="metrica-whatsapp",
 )
+amazon_page = st.Page(
+    render_amazon_page,
+    title="Amazon",
+    icon=":material/storefront:",
+    url_path="amazon",
+)
 metric_pages.append(whatsapp_placeholder_page)
+metric_pages.append(amazon_page)
 
 navigation = st.navigation(
     {

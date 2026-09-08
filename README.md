@@ -74,8 +74,8 @@ logar no Streamlit) nessa tela.
 
 ## Fluxo de uso
 
-1. Abra **Importar Dados**, selecione um arquivo JSON (Login, Pop-up)
-   ou CSV (Disparos E-mail).
+1. Abra **Importar Dados**, selecione um arquivo JSON (Login, Pop-up),
+   CSV (Disparos E-mail) ou Excel (relatório semanal da Amazon).
 2. Confira a prévia: registros encontrados, novos, existentes e
    inválidos.
 3. Clique em **Importar dados** para persistir.
@@ -107,6 +107,32 @@ o mesmo destinatário pode aparecer em campanhas diferentes sem
 colidir. Reimportar o mesmo CSV depois que alguém abre o e-mail (status
 de leitura muda) atualiza o registro existente, mesmo mecanismo de
 idempotência das demais métricas.
+
+### Amazon — Tráfego + Funil de Cadastro (Excel)
+
+A Amazon manda periodicamente um `.xlsx` com o retorno das campanhas do
+Tracken: quantas visitas reais a página de cadastro de vendedor
+recebeu de cada canal, e o quanto cada vendedor avançou no cadastro. O
+arquivo traz (pelo menos) duas abas relevantes, cada uma virando uma
+métrica própria:
+
+- **traffic**: visitas diárias por canal (`source_detail` no arquivo:
+  `log - tracken` / `pop - tracken` / `wa - tracken`, mapeadas pra
+  `login`/`popup`/`whatsapp` — ver `metrics/amazon_common.py`).
+- **funnel**: uma linha por vendedor (`merchant_customer_id`), com a
+  data de cada etapa do cadastro (Reg Start → Reg Complete → RV → KYC
+  → Ready to Launch → Launch → FBA Launch). Progressivo: reimportar um
+  arquivo mais novo atualiza o mesmo vendedor conforme ele avança,
+  chave natural é só o `merchant_customer_id`.
+
+Como o arquivo não tem convenção de nome nem precisa de metadado
+extra, a tela de importação só pede pra escolher a métrica certa —
+**o mesmo arquivo é importado duas vezes**, uma selecionando "Tráfego
+Amazon" (lê a aba `traffic`) e outra "Funil de Cadastro Amazon" (lê a
+aba `funnel`). As duas aparecem juntas numa única página **Amazon** no
+menu (não duas páginas separadas), que também cruza o tráfego
+confirmado pela Amazon com os cliques que o dash já importa de
+Login/Pop-up.
 
 Os dois arquivos de exemplo (`data/samples/login-19-08_26-08.json` e
 `data/samples/popup-19-08_26-08.json` — fora do controle de versão, pois

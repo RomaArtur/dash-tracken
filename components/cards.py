@@ -31,6 +31,7 @@ _ACCENT_VARS = {
     "purple": "var(--tk-purple)",
     "navy": "var(--tk-navy)",
     "blue": "var(--tk-blue)",
+    "amber": "var(--tk-amber)",
 }
 
 

@@ -91,6 +91,41 @@ def load_csv(file_bytes: bytes) -> pd.DataFrame:
         raise ImportValidationError(f"Arquivo CSV inválido: {exc}") from exc
 
 
+def load_xlsx(file_bytes: bytes, sheet_name: str) -> pd.DataFrame:
+    """Lê uma aba específica de um arquivo Excel de múltiplas abas (ex.:
+    o relatório semanal da Amazon, que traz 'traffic' e 'funnel' juntos
+    no mesmo arquivo — cada aba vira uma métrica registrada à parte, ver
+    metrics/amazon_traffic.py e metrics/amazon_funnel.py)."""
+    try:
+        return pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet_name, engine="openpyxl")
+    except ValueError as exc:
+        raise ImportValidationError(f"Não foi possível ler a aba '{sheet_name}' do arquivo Excel: {exc}") from exc
+
+
+def _comparable(series: pd.Series) -> pd.Series:
+    """Normaliza uma coluna para comparação textual entre o valor recém
+    parseado e o que já está no banco. Sem isso, uma coluna numérica
+    nula (ex.: metrics/amazon_funnel.py: siv_approved_indicator) volta
+    do banco como float (1.0) — porque `pandas.DataFrame(cur.fetchall())`
+    promove pra float qualquer coluna que misture inteiros com None —
+    enquanto o valor recém-parseado é int (1); '1' != '1.0' geraria um
+    falso positivo de 'registro mudou' a cada reimportação. Constrói o
+    resultado célula a célula (em vez de `.map()`/`.astype(str)`
+    vetorizado) de propósito: em colunas de data, o pandas às vezes
+    reconverte `None` de volta pra `NaT` durante essas operações
+    vetorizadas, e duas floats NaN nunca são iguais entre si (`nan !=
+    nan`), quebrando a comparação mesmo depois de normalizar."""
+
+    def normalize(value) -> str:
+        if pd.isna(value):
+            return "None"
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value)
+
+    return pd.Series([normalize(v) for v in series], index=series.index)
+
+
 def _empty_preview(metric: MetricDefinition, filename: str, parsed: pd.DataFrame) -> ImportPreview:
     return ImportPreview(metric, filename, 0, parsed, parsed, parsed, parsed, parsed)
 
@@ -145,7 +180,7 @@ def build_preview(
             changed_mask = pd.Series(False, index=both_df.index)
             for col in value_cols:
                 existing_col = f"{col}_existing" if f"{col}_existing" in both_df.columns else col
-                changed_mask |= both_df[col].astype(str) != both_df[existing_col].astype(str)
+                changed_mask |= _comparable(both_df[col]) != _comparable(both_df[existing_col])
             updated_df = both_df.loc[changed_mask, keep_cols].copy()
             unchanged_df = both_df.loc[~changed_mask, keep_cols].copy()
 

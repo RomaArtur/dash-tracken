@@ -65,17 +65,38 @@ class MetricDefinition:
     coluna -> rótulo (ex.: {'codemp': 'Empresa'}). None se a métrica não
     tiver dimensão além da data (caso do login)."""
 
-    accent: Literal["green", "purple", "navy", "blue"] = "green"
+    accent: Literal["green", "purple", "navy", "blue", "amber"] = "green"
     """Papel semântico de cor da métrica em toda a UI (nav, cards de
     KPI, gráficos). Cada métrica deve usar um valor distinto para
     permanecer distinguível quando comparada a outras no mesmo gráfico
     (ver components/charts.py: line_multi, grouped_columns)."""
 
-    file_format: Literal["json", "csv"] = "json"
+    file_format: Literal["json", "csv", "xlsx"] = "json"
     """Formato de arquivo aceito na tela de importação. Métricas 'csv'
-    recebem um pandas.DataFrame já lido (não um dict) em `parse`, e
-    normalmente dependem de metadados que não vêm do arquivo (ver
-    `parse` e `context` acima)."""
+    e 'xlsx' recebem um pandas.DataFrame já lido (não um dict) em
+    `parse`, e normalmente dependem de metadados que não vêm do
+    arquivo (ver `parse` e `context` acima). Métricas 'xlsx' também
+    precisam de `xlsx_sheet`."""
+
+    xlsx_sheet: str | None = None
+    """Nome da aba a ler quando `file_format == 'xlsx'` — o arquivo
+    pode ter várias abas (ex.: o relatório semanal da Amazon vem com
+    'traffic' e 'funnel' no mesmo arquivo, cada uma virando uma
+    métrica registrada separadamente)."""
+
+    standalone_page: bool = True
+    """Se False, `app.py` não gera uma página de detalhe própria pra
+    essa métrica — ela só é renderizada dentro de uma página
+    customizada que combina várias métricas (ex.: `views/amazon_page.py`
+    combinando `amazon_traffic` e `amazon_funnel` numa única seção
+    'Amazon', em vez de duas páginas separadas no menu)."""
+
+    show_in_overview: bool = True
+    """Se False, `views/overview.py` ignora essa métrica por completo
+    (nem cards de Total acumulado, nem gráficos combinados) — usado
+    quando a métrica tem granularidade ou propósito incompatível com a
+    Visão Geral (ex.: métricas Amazon, que não são 'contagem de
+    eventos por dia')."""
 
     show_in_combined_charts: bool = True
     """Se False, `views/overview.py` exclui essa métrica do gráfico

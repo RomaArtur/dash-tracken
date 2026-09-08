@@ -25,7 +25,7 @@ def render_overview() -> None:
         start, end = filters.period_filter(key_prefix="overview")
     prev_start, prev_end = ms.previous_period(start, end)
 
-    metrics = list(METRICS.values())
+    metrics = [metric for metric in METRICS.values() if metric.show_in_overview]
     series_by_metric = {}
     kpis = []
     sparklines = []

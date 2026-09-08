@@ -14,6 +14,7 @@ GREEN_DARK = "#1E8A1E"
 PURPLE = "#9A5FE0"
 NAVY = "#22305E"
 BLUE = "#2F6FE0"
+AMBER = "#D98C1F"
 MUTED = "#C7C9CC"
 NEGATIVE = "#D64545"
 
@@ -22,6 +23,7 @@ ACCENTS: dict[str, str] = {
     "purple": PURPLE,
     "navy": NAVY,
     "blue": BLUE,
+    "amber": AMBER,
     "negative": NEGATIVE,
 }
 
