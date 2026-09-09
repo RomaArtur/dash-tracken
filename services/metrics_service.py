@@ -188,11 +188,14 @@ def top_dimension(
     dimension_column: str,
     date_from: date | None = None,
     date_to: date | None = None,
-    top_n: int = 10,
+    top_n: int | None = None,
 ) -> pd.DataFrame:
-    """Ranking (top-N) somando a métrica principal por uma dimensão
-    (ex.: empresa, usuário). Só faz sentido para métricas que possuem
-    essa coluna (ver MetricDefinition.ranking_dimensions)."""
+    """Ranking somando a métrica principal por uma dimensão (ex.:
+    empresa, usuário). Só faz sentido para métricas que possuem essa
+    coluna (ver MetricDefinition.ranking_dimensions). `top_n=None`
+    (padrão) retorna todos os valores da dimensão, sem cortar — passe
+    um número pra limitar a um top-N quando a dimensão tiver muitos
+    valores distintos e só o topo interessar."""
     conn = get_connection()
     df = metrics_repository.fetch_metric_df(conn, metric, date_from, date_to)
     if df.empty or dimension_column not in df.columns:
@@ -203,6 +206,5 @@ def top_dimension(
         .reset_index()
         .rename(columns={metric.primary_value_column: "value"})
         .sort_values("value", ascending=False)
-        .head(top_n)
     )
-    return ranking
+    return ranking.head(top_n) if top_n is not None else ranking
