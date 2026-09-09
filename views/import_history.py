@@ -31,6 +31,11 @@ def render_import_history() -> None:
     runs["metrica"] = runs["metric_type"].map(lambda k: METRICS[k].label if k in METRICS else k)
     runs["error_message"] = runs["error_message"].fillna("—")
 
+    metric_options = ["Todas"] + sorted(runs["metrica"].unique())
+    selected_metric = st.selectbox("Filtrar por métrica", metric_options)
+    if selected_metric != "Todas":
+        runs = runs[runs["metrica"] == selected_metric]
+
     display_cols = {
         "imported_at": "Data/Hora",
         "filename": "Arquivo",
@@ -43,10 +48,14 @@ def render_import_history() -> None:
         "status": "Status",
         "error_message": "Mensagem",
     }
-    st.caption("Selecione uma linha para excluir aquela importação.")
+    st.caption(
+        f"{len(runs)} execuç{'ão' if len(runs) == 1 else 'ões'} — role dentro da tabela para ver todas. "
+        "Selecione uma linha para excluir aquela importação."
+    )
     event = st.dataframe(
         runs[list(display_cols.keys())].rename(columns=display_cols),
         width="stretch",
+        height=460,
         hide_index=True,
         column_config={
             "Data/Hora": st.column_config.DatetimeColumn(format="DD/MM/YYYY HH:mm"),
