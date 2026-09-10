@@ -20,3 +20,17 @@ CHANNEL_LABELS: dict[str, str] = {
     "popup": "Pop-up",
     "whatsapp": "WhatsApp",
 }
+
+FUNNEL_STAGE_COLUMNS: list[tuple[str, str]] = [
+    ("registration_start_date", "Reg Start"),
+    ("registration_complete_date", "Reg Complete"),
+    ("siv_approved_indicator", "Verificado (RV)"),
+    ("kyctrigger_date", "KYC"),
+    ("rtl_date", "Ready to Launch"),
+    ("launch_date", "Launch"),
+    ("fba_launch_date", "FBA Launch"),
+]
+"""Colunas de metric_amazon_funnel (ver metrics/amazon_funnel.py) na
+ordem da jornada de cadastro, com o rótulo exibido em cada etapa do
+funil. 'Verificado (RV)' é a exceção: conta linhas com valor == 1, as
+demais contam quantas linhas têm a data daquela etapa preenchida."""

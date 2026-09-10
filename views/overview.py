@@ -67,6 +67,23 @@ def render_overview() -> None:
     st.subheader(f"Período selecionado — {start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}")
     cards.kpi_row(kpis, metrics, sparklines)
 
+    st.divider()
+    st.subheader("Jornada Completa")
+    cliques = ms.total_clicks_sent(start, end)
+    visitas = ms.total_traffic_visits(start, end)
+    stage_labels, stage_values = ms.funnel_stage_counts(start, end)
+    if not stage_labels and not cliques and not visitas:
+        st.info("Sem dados suficientes para montar a jornada completa ainda.")
+    else:
+        journey_labels = ["Cliques enviados", "Visitas confirmadas (Amazon)"] + stage_labels
+        journey_values = [cliques, visitas] + stage_values
+        st.plotly_chart(
+            charts.funnel_chart(journey_labels, journey_values, accent="amber"),
+            width="stretch",
+            theme="streamlit",
+            height=480,
+        )
+
     combined_metrics = [metric for metric in metrics if metric.show_in_combined_charts]
 
     st.divider()

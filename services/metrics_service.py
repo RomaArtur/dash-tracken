@@ -208,3 +208,72 @@ def top_dimension(
         .sort_values("value", ascending=False)
     )
     return ranking.head(top_n) if top_n is not None else ranking
+
+
+def clicks_sent(channel_key: str, start: date, end: date) -> int | None:
+    """Total de cliques já importados pro canal no período, ou None se
+    o canal ainda não tem métrica própria de disparo (caso do
+    WhatsApp, só com placeholder por enquanto)."""
+    from metrics import METRICS
+
+    if channel_key not in METRICS:
+        return None
+    daily_df = load_daily_series_cached(channel_key)
+    if daily_df.empty:
+        return 0
+    mask = (daily_df["date"] >= start) & (daily_df["date"] <= end)
+    return int(daily_df.loc[mask, "value"].sum())
+
+
+def traffic_visits(channel_key: str, start: date, end: date) -> int:
+    """Visitas confirmadas pela Amazon (metric_amazon_traffic) pra um
+    canal específico, no período."""
+    from metrics import METRICS
+
+    conn = get_connection()
+    df = metrics_repository.fetch_metric_df(
+        conn, METRICS["amazon_traffic"], date_from=start, date_to=end, filters={"channel": channel_key}
+    )
+    return int(df["visits"].sum()) if not df.empty else 0
+
+
+def total_clicks_sent(start: date, end: date) -> int:
+    """Cliques enviados somados em todos os canais de disparo (Login +
+    Pop-up + WhatsApp quando existir) — usado no funil da jornada
+    completa da Visão Geral, onde o cliente não distingue canal."""
+    from metrics.amazon_common import CHANNEL_LABELS
+
+    return sum(clicks_sent(channel_key, start, end) or 0 for channel_key in CHANNEL_LABELS)
+
+
+def total_traffic_visits(start: date, end: date) -> int:
+    """Visitas confirmadas pela Amazon somadas em todos os canais, no
+    período — contraparte de `total_clicks_sent`."""
+    from metrics import METRICS
+
+    conn = get_connection()
+    df = metrics_repository.fetch_metric_df(conn, METRICS["amazon_traffic"], date_from=start, date_to=end)
+    return int(df["visits"].sum()) if not df.empty else 0
+
+
+def funnel_stage_counts(start: date, end: date) -> tuple[list[str], list[int]]:
+    """Conta, por etapa do funil de cadastro Amazon (ver
+    metrics.amazon_common.FUNNEL_STAGE_COLUMNS), quantos vendedores com
+    início de cadastro no período já chegaram até ali. Retorna duas
+    listas vazias se não houver nenhum vendedor no período."""
+    from metrics import METRICS
+    from metrics.amazon_common import FUNNEL_STAGE_COLUMNS
+
+    conn = get_connection()
+    df = metrics_repository.fetch_metric_df(conn, METRICS["amazon_funnel"], date_from=start, date_to=end)
+    if df.empty:
+        return [], []
+
+    labels = [label for _, label in FUNNEL_STAGE_COLUMNS]
+    values = []
+    for column, _ in FUNNEL_STAGE_COLUMNS:
+        if column == "siv_approved_indicator":
+            values.append(int((df[column] == 1).sum()))
+        else:
+            values.append(int(df[column].notna().sum()))
+    return labels, values

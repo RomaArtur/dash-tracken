@@ -18,37 +18,6 @@ from repositories import metrics_repository
 from services import metrics_service as ms
 from services.database import get_connection
 
-_FUNNEL_STAGES: list[tuple[str, str]] = [
-    ("registration_start_date", "Reg Start"),
-    ("registration_complete_date", "Reg Complete"),
-    ("siv_approved_indicator", "Verificado (RV)"),
-    ("kyctrigger_date", "KYC"),
-    ("rtl_date", "Ready to Launch"),
-    ("launch_date", "Launch"),
-    ("fba_launch_date", "FBA Launch"),
-]
-
-
-def _clicks_sent(channel_key: str, start, end) -> int | None:
-    """Total de cliques já importados pro canal no período, ou None se
-    o canal ainda não tem métrica própria de disparo (caso do
-    WhatsApp, só com placeholder por enquanto)."""
-    if channel_key not in METRICS:
-        return None
-    daily_df = ms.load_daily_series_cached(channel_key)
-    if daily_df.empty:
-        return 0
-    mask = (daily_df["date"] >= start) & (daily_df["date"] <= end)
-    return int(daily_df.loc[mask, "value"].sum())
-
-
-def _traffic_visits(channel_key: str, start, end) -> int:
-    conn = get_connection()
-    df = metrics_repository.fetch_metric_df(
-        conn, METRICS["amazon_traffic"], date_from=start, date_to=end, filters={"channel": channel_key}
-    )
-    return int(df["visits"].sum()) if not df.empty else 0
-
 
 def render_amazon_page() -> None:
     st.title("Amazon")
@@ -62,8 +31,8 @@ def render_amazon_page() -> None:
     st.subheader("Tráfego x Cliques")
     cols = st.columns(len(CHANNEL_LABELS))
     for col, (channel_key, channel_label) in zip(cols, CHANNEL_LABELS.items()):
-        clicks = _clicks_sent(channel_key, start, end)
-        visits = _traffic_visits(channel_key, start, end)
+        clicks = ms.clicks_sent(channel_key, start, end)
+        visits = ms.traffic_visits(channel_key, start, end)
         with col:
             with st.container(key=f"tk-accent-amber-amazon-{channel_key}", border=True):
                 st.markdown(f"**{channel_label}**")
@@ -86,13 +55,7 @@ def render_amazon_page() -> None:
         st.info("Sem vendedores com início de cadastro no período selecionado.")
         return
 
-    stage_labels = [label for _, label in _FUNNEL_STAGES]
-    stage_values = []
-    for col, _ in _FUNNEL_STAGES:
-        if col == "siv_approved_indicator":
-            stage_values.append(int((funnel_df[col] == 1).sum()))
-        else:
-            stage_values.append(int(funnel_df[col].notna().sum()))
+    stage_labels, stage_values = ms.funnel_stage_counts(start, end)
 
     st.plotly_chart(
         charts.funnel_chart(stage_labels, stage_values, accent="amber"),
