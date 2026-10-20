@@ -1,286 +1,38 @@
 # Tracken Analytics
 
-Dashboard de métricas de uso do sistema (Login, Pop-up e futuras
-funcionalidades), construído com **Streamlit + PostgreSQL + Pandas +
-Plotly**, substituindo o Power BI. Mantém histórico acumulado: cada
-importação de JSON soma-se ao que já existe, sem duplicar registros.
+Dashboard de métricas (Login, Pop-up, Disparos E-mail e Amazon) em **Streamlit + PostgreSQL**.
+Cada importação soma ao histórico existente, sem duplicar registros.
 
-## Banco de dados
+## Rodar local
 
-A aplicação lê a connection string de um banco Postgres na variável
-`DATABASE_URL` — via `st.secrets` (arquivo local
-`.streamlit/secrets.toml`, gitignored, ou as Secrets do app no
-Streamlit Community Cloud) ou variável de ambiente (usada pelo Docker).
-Veja `.streamlit/secrets.toml.example` para o formato.
-
-Em produção usamos [Supabase](https://supabase.com) (Postgres gerenciado,
-plano free, sem cartão) — qualquer outro Postgres gerenciado com camada
-gratuita funciona igual (ex. [Neon](https://neon.tech)). No Supabase,
-use o modo **Session pooler** na tela de conexão do projeto (não
-"Direct connection" — essa usa IPv6 por padrão e exigiria um add-on
-pago de IPv4 para funcionar a partir do Streamlit Community Cloud). O
-schema (tabelas de cada métrica + `import_runs`) é criado
-automaticamente na primeira execução via `init_schema()`, não há
-migrations manuais.
-
-## Como executar
-
-### Local (Windows)
+Crie `.streamlit/secrets.toml` a partir de `.streamlit/secrets.toml.example` (com a `DATABASE_URL` do Postgres) e rode:
 
 ```powershell
 .\scripts\run_local.ps1
 ```
 
-O script cria o `.venv` se não existir, instala/atualiza as
-dependências e sobe o Streamlit em `http://localhost:8501`. Requer
-`.streamlit/secrets.toml` com `DATABASE_URL` preenchido (copie de
-`.streamlit/secrets.toml.example`).
+Abre em `http://localhost:8501`. As tabelas são criadas sozinhas na primeira execução.
 
-Alternativa manual:
+## Produção
 
-```bash
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # Linux/Mac
+Streamlit Community Cloud, branch `main`, arquivo `app.py`. A `DATABASE_URL` vai em *Advanced settings → Secrets*.
+Todo push na `main` publica automaticamente.
 
-pip install -r requirements.txt
-streamlit run app.py
-```
+O banco é o Supabase (plano gratuito): use a connection string do **Session pooler** e lembre que o projeto
+**pausa após ~7 dias sem uso**, o que derruba o app até ser restaurado no painel.
 
-### Docker
+## Importar dados
 
-```bash
-docker build -t dash-tracken .
-docker run -p 8501:8501 -e DATABASE_URL="postgresql://..." dash-tracken
-```
+Em **Importar Dados**, escolha o arquivo, confira a prévia e confirme. Reimportar o mesmo arquivo não duplica nada.
 
-### Produção (Streamlit Community Cloud)
-
-Deploy gratuito, sem cartão de crédito:
-
-1. Em [share.streamlit.io](https://share.streamlit.io), "New app" →
-   selecione o repositório `dash-tracken`, branch `main`, arquivo
-   `app.py`.
-2. Em "Advanced settings" → **Secrets**, cole o conteúdo de
-   `.streamlit/secrets.toml.example` já preenchido com sua
-   `DATABASE_URL` real (Supabase, connection string do Session pooler).
-3. Deploy. Como o banco é externo (não é disco local do container),
-   os dados sobrevivem normalmente a redeploys e a reinícios do app.
-
-Por padrão o app fica **restrito a e-mails convidados**, não público
-(App settings → Sharing → "Only specific people can view this app").
-Para dar acesso a mais gente, adicione o e-mail (o mesmo usado para
-logar no Streamlit) nessa tela.
-
-## Fluxo de uso
-
-1. Abra **Importar Dados**, selecione um arquivo JSON (Login, Pop-up),
-   CSV (Disparos E-mail) ou Excel (relatório semanal da Amazon).
-2. Confira a prévia: registros encontrados, novos, existentes e
-   inválidos.
-3. Clique em **Importar dados** para persistir.
-4. Vá em **Visão Geral** ou na página da métrica específica (Login,
-   Pop-up, Disparos E-mail) para ver KPIs, evolução e comparação
-   semanal.
-5. Consulte **Histórico de Importações** para auditar o que foi
-   importado, quando e com que resultado.
-
-### Disparos E-mail (CSV)
-
-O CSV exportado do CRM de e-mail marketing não identifica cliente nem
-campanha — só e-mail, status de envio, leitura e datas. Por isso o
-**nome do arquivo** carrega essa informação, na convenção:
-
-```
-email_<cliente>_<campanha>.csv
-```
-
-Exemplo: `email_3dunique_11341.csv` → cliente `3dunique`, campanha
-`11341`. A tela de importação extrai os dois valores do nome do
-arquivo e os deixa editáveis antes de gerar a prévia (sugestões de
-cliente já usados aparecem num seletor, para não duplicar o mesmo
-cliente com grafias diferentes) — se o nome não seguir a convenção, os
-campos ficam em branco para preenchimento manual.
-
-A chave natural do registro é **(campanha, e-mail)**, não só e-mail —
-o mesmo destinatário pode aparecer em campanhas diferentes sem
-colidir. Reimportar o mesmo CSV depois que alguém abre o e-mail (status
-de leitura muda) atualiza o registro existente, mesmo mecanismo de
-idempotência das demais métricas.
-
-### Amazon — Tráfego + Funil de Cadastro (Excel)
-
-A Amazon manda periodicamente um `.xlsx` com o retorno das campanhas do
-Tracken: quantas visitas reais a página de cadastro de vendedor
-recebeu de cada canal, e o quanto cada vendedor avançou no cadastro. O
-arquivo traz (pelo menos) duas abas relevantes, cada uma virando uma
-métrica própria:
-
-- **traffic**: visitas diárias por canal (`source_detail` no arquivo:
-  `log - tracken` / `pop - tracken` / `wa - tracken`, mapeadas pra
-  `login`/`popup`/`whatsapp` — ver `metrics/amazon_common.py`).
-- **funnel**: uma linha por vendedor (`merchant_customer_id`), com a
-  data de cada etapa do cadastro (Reg Start → Reg Complete → RV → KYC
-  → Ready to Launch → Launch → FBA Launch). Progressivo: reimportar um
-  arquivo mais novo atualiza o mesmo vendedor conforme ele avança,
-  chave natural é só o `merchant_customer_id`.
-
-Como o arquivo não tem convenção de nome nem precisa de metadado
-extra, a tela de importação só pede pra escolher a métrica certa —
-**o mesmo arquivo é importado duas vezes**, uma selecionando "Tráfego
-Amazon" (lê a aba `traffic`) e outra "Funil de Cadastro Amazon" (lê a
-aba `funnel`). As duas aparecem juntas numa única página **Amazon** no
-menu (não duas páginas separadas), que também cruza o tráfego
-confirmado pela Amazon com os cliques que o dash já importa de
-Login/Pop-up.
-
-Os dois arquivos de exemplo (`data/samples/login-19-08_26-08.json` e
-`data/samples/popup-19-08_26-08.json` — fora do controle de versão, pois
-contêm dados reais de uso) já foram importados para você validar o fluxo
-imediatamente. Tente importar o mesmo arquivo de novo: o preview vai
-mostrar 0 novos / todos existentes, comprovando a idempotência.
-
-## Modelo de dados — como foi definido
-
-Os dois JSONs fornecidos têm granularidades **diferentes**, o que guiou
-o design:
-
-- **Login** (`login-*.json`): `{"YYYY-MM-DD": total}` — já vem
-  agregado por dia, sem quebra por usuário/empresa.
-- **Pop-up** (`popup-*.json`): `{"YYYY-MM-DD": {"total": N, "usuarios":
-  [{coduser, codemp, cliques, primeiro_clique, ultimo_clique}, ...]}}`
-  — granularidade de (dia, usuário, empresa). O campo `total` é
-  redundante (soma de `cliques`) e não é persistido, para não haver
-  duas fontes de verdade.
-
-Por isso o banco **não usa uma tabela genérica única** (isso forçaria
-um modelo EAV desnecessariamente complexo para o volume de dados
-atual). Cada métrica tem sua própria tabela, no formato que reflete sua
-granularidade real:
-
-```sql
-metric_login_daily (
-    date DATE PRIMARY KEY,
-    total_logins INTEGER NOT NULL,
-    import_run_id BIGINT,
-    updated_at TIMESTAMP NOT NULL
-)
-
-metric_popup_daily (
-    date DATE, coduser VARCHAR, codemp VARCHAR,
-    cliques INTEGER NOT NULL,
-    primeiro_clique TIMESTAMP, ultimo_clique TIMESTAMP,
-    import_run_id BIGINT, updated_at TIMESTAMP NOT NULL,
-    PRIMARY KEY (date, coduser, codemp)
-)
-
-metric_email_campaign (
-    campaign_id VARCHAR, cliente VARCHAR, email VARCHAR, date DATE,
-    status_envio VARCHAR, enviado INTEGER NOT NULL, lido INTEGER NOT NULL,
-    subscricao VARCHAR, data_criacao TIMESTAMP, data_envio TIMESTAMP,
-    import_run_id BIGINT, updated_at TIMESTAMP NOT NULL,
-    PRIMARY KEY (campaign_id, email)
-)
-
-import_runs (
-    id BIGINT PRIMARY KEY, metric_type VARCHAR, filename VARCHAR,
-    imported_at TIMESTAMP, records_received/inserted/updated/ignored/invalid INTEGER,
-    status VARCHAR, error_message VARCHAR
-)
-```
-
-O que padroniza as métricas entre si não é o schema do banco, e sim a
-interface Python `MetricDefinition` (`metrics/base.py`): toda métrica
-declara sua chave natural, colunas de valor, DDL, e como parsear/validar
-seu JSON. Importação, dashboard e navegação são genéricos sobre essa
-interface — **nenhum dos dois compartilha tabela, mas os dois
-compartilham todo o pipeline**.
-
-### Deduplicação e idempotência
-
-Cada métrica define sua **chave natural**:
-
-- Login: `(date)` — um total por dia.
-- Pop-up: `(date, coduser, codemp)` — confirmado no arquivo real que
-  não há colisão dentro do mesmo dia.
-
-Ao importar um arquivo, cada registro é comparado com o banco pela
-chave natural:
-
-| Situação | Ação |
+| Métrica | Arquivo |
 |---|---|
-| Chave não existe no banco | **Inserido** |
-| Chave existe, valores iguais | **Ignorado** (nenhuma escrita) |
-| Chave existe, algum valor mudou | **Atualizado** (UPSERT) |
+| Login | JSON `{"AAAA-MM-DD": total}` |
+| Pop-up | JSON por dia, com a lista de usuários |
+| Disparos E-mail | CSV nomeado `email_<cliente>_<campanha>.csv` (ex.: `email_clientea_123.csv`) |
+| Amazon | Excel com abas `traffic` e `funnel`; importe o mesmo arquivo duas vezes, uma por métrica |
 
-Isso cobre tanto o caso "importei o mesmo arquivo duas vezes sem
-querer" (tudo cai em ignorado) quanto "reenviei o dia de hoje com mais
-cliques acumulados" (vira atualização, não duplicação). Validado com
-teste automatizado: importar os dois arquivos de exemplo duas vezes
-resulta em 0 novos / 0 atualizados na segunda vez.
+## Nova métrica
 
-## Arquitetura
-
-```
-app.py                  # monta a navegação (fixa + gerada a partir de METRICS)
-metrics/                # o que cada métrica É: parse, validação, schema, chave natural
-  base.py               #   MetricDefinition (a interface)
-  login.py, popup.py    #   uma métrica = um módulo
-  __init__.py           #   METRICS = {chave: definição}  <- registro central
-services/
-  database.py           #   ÚNICO lugar que conhece Postgres (conexão + schema)
-  importer.py            #   pipeline: parse -> valida -> detecta dup -> persiste
-  metrics_service.py     #   KPIs, séries diárias, comparação semanal, ranking
-repositories/
-  metrics_repository.py  #   SELECT/UPSERT genéricos sobre qualquer MetricDefinition
-  import_repository.py   #   CRUD da tabela import_runs
-components/               # widgets Streamlit reutilizáveis (cards, gráficos, filtro de período)
-views/                    # uma função de página por tela; sem lógica de negócio dentro delas
-utils/                    # logging e injeção de CSS
-assets/styles.css         # visual "SaaS", sem exagero de efeitos
-logs/app.log              # log de importações e erros
-```
-
-### Por que `views/` (funções) em vez de `pages/` (arquivos)
-
-O Streamlit permite montar a navegação programaticamente
-(`st.navigation` + `st.Page`) a partir de funções, não só de arquivos.
-Isso foi usado de propósito: **as páginas de métrica (Login, Pop-up) são
-geradas em loop a partir de `metrics.METRICS`** (`app.py`). Adicionar
-uma métrica nova no futuro é registrar um módulo em `metrics/` — nenhum
-arquivo de página novo, nenhuma duplicação de layout/lógica.
-
-### Extensibilidade pensada, sem implementar agora
-
-- **API/webhook de importação automática**: `services/importer.py` já
-  separa "receber bytes JSON" de "quem os enviou" — reaproveitável por
-  um endpoint futuro sem tocar na lógica de negócio.
-- **Analista de IA**: `services/metrics_service.py` já centraliza os
-  cálculos; é a camada que vai gerar o contexto estruturado para um
-  LLM no futuro.
-- **Nova métrica**: um módulo em `metrics/` + uma entrada em
-  `metrics/__init__.py`. Sem tocar em `app.py`, `importer.py`,
-  `metrics_service.py` ou nas views.
-
-## Cache
-
-- `st.cache_resource` na conexão Postgres (`services/database.py`) —
-  reaberta uma única vez por sessão.
-- `st.cache_data` nas séries diárias usadas pelos gráficos
-  (`services/metrics_service.load_daily_series_cached`) — invalidado
-  explicitamente (`clear_cache()`) sempre que uma importação é
-  confirmada, para o dashboard nunca mostrar dados desatualizados.
-
-## Logging
-
-`utils/logging_config.py` grava em `logs/app.log` (e no console):
-início/fim de importações com contagens, falhas de leitura de JSON e
-erros de banco. Sem infraestrutura adicional nesta versão.
-
-## Testado
-
-- Importação dos dois arquivos reais fornecidos (login e popup).
-- Reimportação dos mesmos arquivos — confirmado 0 registros novos, 0
-  atualizados na segunda vez (idempotência).
-- Todas as páginas (Visão Geral, Login, Pop-up, Importar Dados,
-  Histórico) renderizadas sem exceções via `streamlit.testing.v1.AppTest`.
+Crie um módulo em `metrics/` (copie `login.py` como modelo) e registre em `metrics/__init__.py`.
+A página e a importação aparecem sozinhas.
