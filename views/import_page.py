@@ -2,11 +2,9 @@
 -> confirmação. Nenhuma escrita no banco acontece antes do usuário
 clicar em 'Importar dados'.
 
-Métricas JSON (Login, Pop-up) seguem o fluxo original. Métricas CSV
-(Disparos E-mail) precisam de dois metadados que não vêm do arquivo —
-cliente e campanha — extraídos por convenção do nome do arquivo
-(`email_<cliente>_<campanha>.csv`) e sempre editáveis antes do preview,
-já que não há garantia de que o nome siga a convenção à risca."""
+Métricas CSV recebem cliente e campanha pelo nome do arquivo, com
+campos editáveis. A campanha também pode vir em uma coluna do CSV,
+como no resumo dos disparos de WhatsApp."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -23,7 +21,7 @@ _NOVO_CLIENTE = "+ Novo cliente"
 
 def _guess_cliente_campanha(filename: str) -> tuple[str, str]:
     """Extrai (cliente, campanha) do nome do arquivo pela convenção
-    `email_<cliente>_<campanha>.csv`. Retorna strings vazias se o nome
+    `<metrica>_<cliente>_<campanha>.csv`. Retorna strings vazias se o nome
     não tiver segmentos suficientes — os campos ficam em branco na tela
     para o usuário preencher na mão."""
     stem = Path(filename).stem
@@ -33,10 +31,12 @@ def _guess_cliente_campanha(filename: str) -> tuple[str, str]:
     return cliente, campanha
 
 
-def _render_csv_metadata_inputs(metric, filename: str) -> tuple[str, str] | None:
+def _render_csv_metadata_inputs(
+    metric, filename: str, *, campaign_in_file: bool = False
+) -> tuple[str, str] | None:
     """Renderiza os campos de Cliente/Campanha para métricas CSV.
-    Retorna (cliente, campanha) só quando ambos estão preenchidos,
-    None caso contrário (preview ainda não deve ser gerado)."""
+    A campanha é opcional nos metadados se já estiver no arquivo.
+    Retorna None enquanto os metadados obrigatórios estiverem vazios."""
     cliente_guess, campanha_guess = _guess_cliente_campanha(filename)
 
     existing_clientes = metrics_repository.distinct_values(get_connection(), metric.table_name, "cliente")
@@ -51,10 +51,15 @@ def _render_csv_metadata_inputs(metric, filename: str) -> tuple[str, str] | None
         else:
             cliente = selected
     with col2:
-        campanha = st.text_input("Campanha / ID", value=campanha_guess)
+        if campaign_in_file:
+            campanha = ""
+            st.caption(f"Campanhas identificadas pela coluna '{metric.csv_campaign_column}' do CSV.")
+        else:
+            campanha = st.text_input("Campanha / ID", value=campanha_guess)
 
-    if not cliente.strip() or not campanha.strip():
-        st.info("Preencha cliente e campanha para gerar a prévia da importação.")
+    if not cliente.strip() or (not campaign_in_file and not campanha.strip()):
+        required_fields = "cliente" if campaign_in_file else "cliente e campanha"
+        st.info(f"Preencha {required_fields} para gerar a prévia da importação.")
         return None
     return cliente.strip(), campanha.strip()
 
@@ -85,17 +90,20 @@ def render_import_page() -> None:
         st.error(f"Selecione um arquivo .{metric.file_format} para a métrica '{metric.label}'.")
         return
 
-    context: dict | None = None
-    if metric.file_format == "csv":
-        metadata = _render_csv_metadata_inputs(metric, uploaded_file.name)
-        if metadata is None:
-            return
-        cliente, campanha = metadata
-        context = {"cliente": cliente, "campaign_id": campanha}
-
     try:
+        context: dict | None = None
         if metric.file_format == "csv":
             raw = importer.load_csv(uploaded_file.getvalue())
+            campaign_in_file = (
+                metric.csv_campaign_column is not None and metric.csv_campaign_column in raw.columns
+            )
+            metadata = _render_csv_metadata_inputs(
+                metric, uploaded_file.name, campaign_in_file=campaign_in_file
+            )
+            if metadata is None:
+                return
+            cliente, campanha = metadata
+            context = {"cliente": cliente, "campaign_id": campanha}
         elif metric.file_format == "xlsx":
             raw = importer.load_xlsx(uploaded_file.getvalue(), metric.xlsx_sheet)
         else:

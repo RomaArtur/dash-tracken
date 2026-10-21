@@ -23,7 +23,6 @@ from views.import_history import render_import_history
 from views.import_page import render_import_page
 from views.metric_page import render_metric_page
 from views.overview import render_overview
-from views.whatsapp_placeholder import render_whatsapp_placeholder
 
 setup_logging()
 
@@ -61,19 +60,12 @@ metric_pages = [
     for metric in METRICS.values()
     if metric.standalone_page
 ]
-whatsapp_placeholder_page = st.Page(
-    render_whatsapp_placeholder,
-    title="Disparos WhatsApp",
-    icon=":material/chat:",
-    url_path="metrica-whatsapp",
-)
 amazon_page = st.Page(
     render_amazon_page,
     title="Amazon",
     icon=":material/storefront:",
     url_path="amazon",
 )
-metric_pages.append(whatsapp_placeholder_page)
 metric_pages.append(amazon_page)
 
 navigation = st.navigation(

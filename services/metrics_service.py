@@ -211,12 +211,11 @@ def top_dimension(
 
 
 def clicks_sent(channel_key: str, start: date, end: date) -> int | None:
-    """Total de cliques já importados pro canal no período, ou None se
-    o canal ainda não tem métrica própria de disparo (caso do
-    WhatsApp, só com placeholder por enquanto)."""
+    """Total de cliques importados no período, ou None se a métrica
+    não medir cliques. Contagens de campanhas não são cliques."""
     from metrics import METRICS
 
-    if channel_key not in METRICS:
+    if channel_key not in METRICS or not METRICS[channel_key].measures_clicks:
         return None
     daily_df = load_daily_series_cached(channel_key)
     if daily_df.empty:
@@ -238,9 +237,8 @@ def traffic_visits(channel_key: str, start: date, end: date) -> int:
 
 
 def total_clicks_sent(start: date, end: date) -> int:
-    """Cliques enviados somados em todos os canais de disparo (Login +
-    Pop-up + WhatsApp quando existir) — usado no funil da jornada
-    completa da Visão Geral, onde o cliente não distingue canal."""
+    """Cliques enviados pelos canais que medem cliques — usado no funil
+    da jornada completa da Visão Geral, sem somar campanhas ou mensagens."""
     from metrics.amazon_common import CHANNEL_LABELS
 
     return sum(clicks_sent(channel_key, start, end) or 0 for channel_key in CHANNEL_LABELS)

@@ -84,6 +84,14 @@ class MetricDefinition:
     'traffic' e 'funnel' no mesmo arquivo, cada uma virando uma
     métrica registrada separadamente)."""
 
+    csv_campaign_column: str | None = None
+    """Coluna opcional com o ID da campanha em cada linha do CSV. Quando
+    presente no arquivo, substitui o campo de campanha da importação."""
+
+    measures_clicks: bool = False
+    """Indica que o valor principal mede cliques enviados à Amazon.
+    Campanhas e mensagens enviadas não devem ser contadas como cliques."""
+
     standalone_page: bool = True
     """Se False, `app.py` não gera uma página de detalhe própria pra
     essa métrica — ela só é renderizada dentro de uma página

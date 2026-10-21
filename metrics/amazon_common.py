@@ -4,7 +4,7 @@ e a página que as combina (views/amazon_page.py).
 A Amazon identifica os canais do Tracken por um `source_detail` interno
 dela (`log - tracken`, `pop - tracken`, `wa - tracken`) — este módulo
 traduz isso para as mesmas chaves usadas pelas métricas de disparo
-(`login`, `popup`, e o futuro `whatsapp`), permitindo comparar cliques
+(`login`, `popup`, e `whatsapp`), permitindo comparar cliques
 enviados com visitas confirmadas pela Amazon sem duplicar o mapeamento
 em cada métrica."""
 from __future__ import annotations

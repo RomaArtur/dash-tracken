@@ -136,4 +136,5 @@ DEFINITION = MetricDefinition(
     validate=validate,
     ranking_dimensions=None,
     accent="purple",
+    measures_clicks=True,
 )
