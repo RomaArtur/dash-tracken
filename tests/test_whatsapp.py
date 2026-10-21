@@ -24,6 +24,7 @@ def campaign(campaign_id="c1", **changes):
         "Enviados": "100",
         "Entregues": "90",
         "Abertos": "45",
+        "Mensagens com falha": "10",
     }
     return {**row, **changes}
 
@@ -42,20 +43,22 @@ class WhatsAppImportTests(unittest.TestCase):
         self.assertEqual(summary.disparos, 2)
         self.assertEqual(summary.contatos, 200)
         self.assertEqual(summary.taxa_entrega, 90)
-        self.assertEqual(summary.taxa_abertura, 50)
+        self.assertEqual(summary.taxa_abertura, 45)
+        self.assertEqual(summary.falhas, 20)
+        self.assertEqual(summary.taxa_falha, 10)
 
-    def test_rates_are_weighted_by_message_volume(self):
+    def test_rates_are_weighted_by_contact_volume(self):
         valid = normalized([
-            campaign("small", **{"Total de contatos": "10", "Enviados": "10", "Entregues": "10", "Abertos": "10"}),
+            campaign("small", **{"Total de contatos": "10", "Enviados": "10", "Entregues": "10", "Abertos": "10", "Mensagens com falha": "0"}),
             campaign("large", **{"Entregues": "50", "Abertos": "10"}),
         ])
         summary = whatsapp.summarize(valid)
         self.assertAlmostEqual(summary.taxa_entrega, 60 / 110 * 100)
-        self.assertAlmostEqual(summary.taxa_abertura, 20 / 60 * 100)
+        self.assertAlmostEqual(summary.taxa_abertura, 20 / 110 * 100)
 
     def test_empty_and_zero_denominators(self):
         self.assertEqual(whatsapp.summarize(pd.DataFrame()), whatsapp.WhatsAppSummary())
-        valid = normalized([campaign(**{"Total de contatos": "0", "Enviados": "0", "Entregues": "0", "Abertos": "0"})])
+        valid = normalized([campaign(**{"Total de contatos": "0", "Enviados": "0", "Entregues": "0", "Abertos": "0", "Mensagens com falha": "0"})])
         self.assertEqual(whatsapp.summarize(valid), whatsapp.WhatsAppSummary(disparos=1))
 
     def test_campaign_can_come_from_import_metadata(self):
@@ -69,7 +72,7 @@ class WhatsAppImportTests(unittest.TestCase):
         self.assertEqual(parsed.iloc[0]["campaign_id"], "csv-id")
 
     def test_missing_metadata_or_columns_are_actionable(self):
-        with self.assertRaisesRegex(ValueError, "Cliente"):
+        with self.assertRaisesRegex(ValueError, "Transportadora"):
             whatsapp.parse(pd.DataFrame([campaign()]))
         with self.assertRaisesRegex(ValueError, "Enviados"):
             whatsapp.parse(pd.DataFrame([campaign()]).drop(columns="Enviados"), {"cliente": "a"})
@@ -126,12 +129,72 @@ class WhatsAppImportTests(unittest.TestCase):
             self.assertEqual(ms.clicks_sent("login", date.today(), date.today()), 7)
             self.assertEqual(ms.clicks_sent("popup", date.today(), date.today()), 7)
 
+    def test_reference_metrics_use_the_total_audience_as_denominator(self):
+        valid = normalized([campaign(**{
+            "Total de contatos": "41", "Enviados": "41", "Entregues": "28",
+            "Abertos": "17", "Mensagens com falha": "13",
+        })])
+        summary = whatsapp.summarize(valid)
+        self.assertEqual((summary.contatos, summary.falhas), (41, 13))
+        self.assertAlmostEqual(summary.taxa_entrega, 28 / 41 * 100)
+        self.assertAlmostEqual(summary.taxa_abertura, 17 / 41 * 100)
+        self.assertAlmostEqual(summary.taxa_falha, 13 / 41 * 100)
+
+    def test_multiple_carriers_can_share_campaign_id_in_one_csv(self):
+        raw = pd.DataFrame([
+            campaign("same", Transportadora="Transportadora A"),
+            campaign("same", Transportadora="Transportadora B"),
+        ])
+        valid, invalid = whatsapp.validate(whatsapp.parse(raw))
+        self.assertTrue(invalid.empty)
+        self.assertEqual(set(valid["cliente"]), {"Transportadora A", "Transportadora B"})
+        self.assertEqual(whatsapp.summarize(valid).disparos, 2)
+        grouped = whatsapp.summarize_by_carrier(valid).set_index("Transportadora")
+        self.assertEqual(grouped.loc["Transportadora A", "Mensagens com falha"], 10)
+        self.assertEqual(grouped.loc["Transportadora B", "Taxa média de abertura"], "45%")
+
+    def test_missing_carrier_in_csv_is_not_replaced_by_import_metadata(self):
+        raw = pd.DataFrame([campaign(Transportadora=None)])
+        valid, invalid = whatsapp.validate(whatsapp.parse(raw, {"cliente": "outra"}))
+        self.assertTrue(valid.empty)
+        self.assertIn("transportadora ausente", invalid.iloc[0]["_motivo"])
+
+    def test_legacy_csv_keeps_unknown_failures_instead_of_assuming_zero(self):
+        raw = pd.DataFrame([campaign()]).drop(columns="Mensagens com falha")
+        valid, invalid = whatsapp.validate(whatsapp.parse(raw, {"cliente": "a"}))
+        self.assertTrue(invalid.empty)
+        self.assertIsNone(valid.iloc[0]["falhas"])
+        summary = whatsapp.summarize(valid)
+        self.assertIsNone(summary.falhas)
+        self.assertIsNone(summary.taxa_falha)
+
+    def test_invalid_or_inconsistent_failures_are_rejected(self):
+        for value in ("-1", "1.5", "inf", "abc", "11"):
+            with self.subTest(value=value):
+                raw = pd.DataFrame([campaign(**{"Mensagens com falha": value})])
+                valid, invalid = whatsapp.validate(whatsapp.parse(raw, {"cliente": "a"}))
+                self.assertTrue(valid.empty)
+                self.assertEqual(len(invalid), 1)
+
+    def test_partial_failure_data_does_not_present_an_incomplete_total(self):
+        first = normalized([campaign("known")])
+        second = normalized([campaign("unknown", **{"Mensagens com falha": None})], cliente="b")
+        self.assertIsNone(whatsapp.summarize(pd.concat([first, second])).falhas)
+        self.assertEqual(whatsapp.summarize(first).falhas, 10)
+
+    def test_reimport_can_fill_previously_unknown_failures(self):
+        existing = normalized([campaign(**{"Mensagens com falha": None})])
+        with patch.object(importer, "get_connection", return_value=object()), \
+             patch.object(metrics_repository, "fetch_existing_keys", return_value=existing):
+            preview = importer.build_preview(METRICS["whatsapp"], "whatsapp.csv", pd.DataFrame([campaign()]), {"cliente": "cliente_a"})
+        self.assertEqual((preview.n_new, preview.n_updated, preview.n_unchanged), (0, 1, 0))
+
 
 class WhatsAppPageTests(unittest.TestCase):
     def setUp(self):
         self.frames = pd.concat([
             normalized([campaign("current"), campaign("older", **{"Data de envio": (date.today() - timedelta(days=35)).isoformat()})]),
-            normalized([campaign("other", **{"Total de contatos": "30", "Enviados": "30", "Entregues": "15", "Abertos": "3"})], cliente="cliente_b"),
+            normalized([campaign("other", **{"Total de contatos": "30", "Enviados": "30", "Entregues": "15", "Abertos": "3", "Mensagens com falha": "15"})], cliente="cliente_b"),
         ], ignore_index=True)
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
@@ -163,16 +226,19 @@ class WhatsAppPageTests(unittest.TestCase):
             default_timeout=20,
         ).run()
 
-    def test_four_cards_respect_period_and_client_filters(self):
+    def test_cards_respect_period_and_carrier_filters(self):
         app = self.page()
         self.assertFalse(app.exception)
         self.assertEqual([metric.label for metric in app.metric], [
-            "Total de Disparos em Massa", "Total de contatos", "Taxa média de entrega", "Taxa média de abertura",
+            "Total de Disparos em Massa", "Total de contatos", "Taxa média de entrega", "Taxa média de abertura", "Mensagens com falha",
         ])
-        self.assertEqual([metric.value for metric in app.metric], ["2", "130", "80,8%", "45,7%"])
+        self.assertEqual(app.selectbox(key="whatsapp_dim_filter").label, "Transportadora")
+        self.assertEqual(app.selectbox(key="whatsapp_dim_filter").value, "Todas as transportadoras")
+        self.assertEqual([metric.value for metric in app.metric], ["2", "130", "81%", "37%", "25"])
+        self.assertEqual(set(app.dataframe[0].value["Transportadora"]), {"cliente_a", "cliente_b"})
         app.selectbox(key="whatsapp_dim_filter").select("cliente_a").run()
         self.assertFalse(app.exception)
-        self.assertEqual([metric.value for metric in app.metric], ["1", "100", "90%", "50%"])
+        self.assertEqual([metric.value for metric in app.metric], ["1", "100", "90%", "45%", "10"])
         app.selectbox(key="whatsapp_preset").select("Últimos 90 dias").run()
         self.assertFalse(app.exception)
         self.assertEqual([metric.value for metric in app.metric][:2], ["2", "200"])
@@ -181,9 +247,44 @@ class WhatsAppPageTests(unittest.TestCase):
         self.frames = self.frames.iloc[:0]
         app = self.page()
         self.assertFalse(app.exception)
-        self.assertEqual([metric.value for metric in app.metric], ["0", "0", "0%", "0%"])
+        self.assertEqual([metric.value for metric in app.metric], ["0", "0", "0%", "0%", "0"])
         self.assertTrue(any("Sem disparos" in info.value for info in app.info))
         self.assertEqual(len(app.get("download_button")), 1)
+
+    def test_reference_cards_and_failure_percentage(self):
+        self.frames = normalized([campaign(**{
+            "Total de contatos": "41", "Enviados": "41", "Entregues": "28",
+            "Abertos": "17", "Mensagens com falha": "13",
+        })])
+        app = self.page()
+        self.assertFalse(app.exception)
+        self.assertEqual([metric.value for metric in app.metric], ["1", "41", "68%", "41%", "13"])
+        self.assertTrue(any("32% deste público falhou" in item.value for item in app.caption))
+        self.assertEqual(len(app.get("progress")), 2)
+
+    def test_unknown_failures_are_visible_in_the_page(self):
+        self.frames = normalized([campaign(**{"Mensagens com falha": None})])
+        app = self.page()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.metric[-1].value, "—")
+        self.assertTrue(any("Falhas não informadas" in item.value for item in app.caption))
+
+    def test_csv_with_multiple_carriers_does_not_require_manual_metadata(self):
+        app = AppTest.from_string("from views.import_page import render_import_page\nrender_import_page()", default_timeout=20).run()
+        csv = pd.DataFrame([
+            campaign("shared", Transportadora="A"), campaign("shared", Transportadora="B"),
+        ]).to_csv(index=False, sep=";").encode("utf-8-sig")
+        app.file_uploader[0].upload("whatsapp_todas.csv", csv, "text/csv").run()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.error)
+        self.assertEqual(len(app.text_input), 0)
+        self.assertEqual(app.metric[1].value, "2")
+        with patch.object(importer, "commit_import", return_value=7) as commit:
+            app.button[0].click().run()
+        self.assertFalse(app.exception)
+        self.assertTrue(app.success)
+        preview = commit.call_args.args[0]
+        self.assertEqual(set(preview.valid_df["cliente"]), {"A", "B"})
 
     def test_upload_uses_campaign_column(self):
         app = AppTest.from_string("from views.import_page import render_import_page\nrender_import_page()", default_timeout=20).run()

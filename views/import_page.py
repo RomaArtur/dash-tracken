@@ -32,24 +32,30 @@ def _guess_cliente_campanha(filename: str) -> tuple[str, str]:
 
 
 def _render_csv_metadata_inputs(
-    metric, filename: str, *, campaign_in_file: bool = False
+    metric, filename: str, *, campaign_in_file: bool = False, client_in_file: bool = False
 ) -> tuple[str, str] | None:
     """Renderiza os campos de Cliente/Campanha para métricas CSV.
-    A campanha é opcional nos metadados se já estiver no arquivo.
+    Os campos são opcionais nos metadados quando já estão no arquivo.
     Retorna None enquanto os metadados obrigatórios estiverem vazios."""
     cliente_guess, campanha_guess = _guess_cliente_campanha(filename)
-
-    existing_clientes = metrics_repository.distinct_values(get_connection(), metric.table_name, "cliente")
+    client_label = (metric.ranking_dimensions or {}).get("cliente", "Cliente")
 
     col1, col2 = st.columns(2)
     with col1:
-        options = existing_clientes + [_NOVO_CLIENTE]
-        default_index = options.index(cliente_guess) if cliente_guess in existing_clientes else len(options) - 1
-        selected = st.selectbox("Cliente", options, index=default_index)
-        if selected == _NOVO_CLIENTE:
-            cliente = st.text_input("Nome do novo cliente", value=cliente_guess)
+        if client_in_file:
+            cliente = ""
+            st.caption(f"Dados de {client_label.lower()} identificados na coluna '{metric.csv_client_column}' do CSV.")
         else:
-            cliente = selected
+            existing_clientes = metrics_repository.distinct_values(get_connection(), metric.table_name, "cliente")
+            new_option = _NOVO_CLIENTE if client_label == "Cliente" else f"+ Cadastrar {client_label.lower()}"
+            options = existing_clientes + [new_option]
+            default_index = options.index(cliente_guess) if cliente_guess in existing_clientes else len(options) - 1
+            selected = st.selectbox(client_label, options, index=default_index)
+            if selected == new_option:
+                name_label = "Nome do novo cliente" if client_label == "Cliente" else f"Nome ({client_label.lower()})"
+                cliente = st.text_input(name_label, value=cliente_guess)
+            else:
+                cliente = selected
     with col2:
         if campaign_in_file:
             campanha = ""
@@ -57,9 +63,13 @@ def _render_csv_metadata_inputs(
         else:
             campanha = st.text_input("Campanha / ID", value=campanha_guess)
 
-    if not cliente.strip() or (not campaign_in_file and not campanha.strip()):
-        required_fields = "cliente" if campaign_in_file else "cliente e campanha"
-        st.info(f"Preencha {required_fields} para gerar a prévia da importação.")
+    missing_fields = []
+    if not client_in_file and not cliente.strip():
+        missing_fields.append(client_label.lower())
+    if not campaign_in_file and not campanha.strip():
+        missing_fields.append("campanha")
+    if missing_fields:
+        st.info(f"Preencha {' e '.join(missing_fields)} para gerar a prévia da importação.")
         return None
     return cliente.strip(), campanha.strip()
 
@@ -97,8 +107,11 @@ def render_import_page() -> None:
             campaign_in_file = (
                 metric.csv_campaign_column is not None and metric.csv_campaign_column in raw.columns
             )
+            client_in_file = (
+                metric.csv_client_column is not None and metric.csv_client_column in raw.columns
+            )
             metadata = _render_csv_metadata_inputs(
-                metric, uploaded_file.name, campaign_in_file=campaign_in_file
+                metric, uploaded_file.name, campaign_in_file=campaign_in_file, client_in_file=client_in_file
             )
             if metadata is None:
                 return

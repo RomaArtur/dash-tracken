@@ -57,4 +57,6 @@ def init_schema() -> None:
         conn.execute(statement)
     for metric in METRICS.values():
         conn.execute(metric.ddl)
+        for statement in metric.schema_updates:
+            conn.execute(statement)
     logger.info("Schema verificado/criado para %d métrica(s)", len(METRICS))

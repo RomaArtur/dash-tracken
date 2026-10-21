@@ -88,6 +88,17 @@ class MetricDefinition:
     """Coluna opcional com o ID da campanha em cada linha do CSV. Quando
     presente no arquivo, substitui o campo de campanha da importação."""
 
+    csv_client_column: str | None = None
+    """Coluna opcional que identifica o cliente em cada linha do CSV,
+    permitindo importar várias transportadoras no mesmo arquivo."""
+
+    all_dimensions_label: str = "Todos"
+    """Rótulo da opção que consolida os valores do filtro de dimensão."""
+
+    schema_updates: Sequence[str] = ()
+    """Ajustes idempotentes executados após a criação da tabela para
+    atualizar instalações existentes sem remover os dados importados."""
+
     measures_clicks: bool = False
     """Indica que o valor principal mede cliques enviados à Amazon.
     Campanhas e mensagens enviadas não devem ser contadas como cliques."""

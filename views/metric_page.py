@@ -13,8 +13,6 @@ from repositories import metrics_repository
 from services import metrics_service as ms
 from services.database import get_connection
 
-_TODOS = "Todos"
-
 
 def render_metric_page(metric_key: str) -> None:
     metric = METRICS[metric_key]
@@ -27,9 +25,9 @@ def render_metric_page(metric_key: str) -> None:
     dim_value: str | None = None
     if metric.ranking_dimensions:
         dim_col, dim_label = next(iter(metric.ranking_dimensions.items()))
-        options = [_TODOS] + metrics_repository.distinct_values(get_connection(), metric.table_name, dim_col)
+        options = [metric.all_dimensions_label] + metrics_repository.distinct_values(get_connection(), metric.table_name, dim_col)
         selected = st.selectbox(dim_label, options, key=f"{metric_key}_dim_filter")
-        dim_value = None if selected == _TODOS else selected
+        dim_value = None if selected == metric.all_dimensions_label else selected
 
     daily_df = ms.load_daily_series_cached(metric_key, dim_value)
     period_df = daily_df[(daily_df["date"] >= start) & (daily_df["date"] <= end)]
