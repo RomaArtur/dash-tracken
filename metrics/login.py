@@ -77,4 +77,5 @@ DEFINITION = MetricDefinition(
     validate=validate,
     ranking_dimensions=None,
     accent="green",
+    measures_clicks=True,
 )
