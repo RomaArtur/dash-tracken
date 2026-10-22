@@ -92,6 +92,16 @@ class MetricDefinition:
     """Coluna opcional que identifica o cliente em cada linha do CSV,
     permitindo importar várias transportadoras no mesmo arquivo."""
 
+    detect_csv: Callable[[pd.DataFrame], bool] | None = None
+    """Reconhece um formato CSV pelos cabeçalhos, mesmo sem prefixo no arquivo."""
+
+    render_import_context: Callable[[pd.DataFrame, str], dict | None] | None = None
+    """Metadados específicos do CSV. None indica preenchimento pendente;
+    um dict vazio delega ao formulário padrão de cliente/campanha."""
+
+    render_import_preview: Callable[[pd.DataFrame], None] | None = None
+    """Apresentação opcional dos dados normalizados antes de confirmar a importação."""
+
     all_dimensions_label: str = "Todos"
     """Rótulo da opção que consolida os valores do filtro de dimensão."""
 
