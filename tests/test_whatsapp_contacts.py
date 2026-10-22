@@ -61,8 +61,37 @@ class ContactImportTests(unittest.TestCase):
             with self.subTest(tags=tags):
                 self.assertEqual(carrier_from_tags(tags), "Mbflex")
         self.assertEqual(carrier_from_tags("expresso.do.sul | expresso.do.sul.bkp"), "Expresso.Do.Sul")
-        with self.assertRaisesRegex(ValueError, "transportadora"):
-            carrier_from_tags("mbflex | jadlog.bkp")
+        self.assertEqual(carrier_from_tags("mbflex | jadlog.bkp"), "Mbflex")
+
+    def test_primary_tag_wins_over_unrelated_backup_tags(self):
+        for tags, expected in (
+            ("WA | wa_bkp | k10flex_bkp", "Wa"),
+            ("k10flex_bkp | wa_bkp | WA", "Wa"),
+            ("k10flex | k10flex_bkp | wa_bkp", "K10Flex"),
+            ("nova_rota | nova_rota_bkp | k10flex_bkp", "Nova Rota"),
+        ):
+            with self.subTest(tags=tags):
+                self.assertEqual(carrier_from_tags(tags), expected)
+
+    def test_multiple_primary_tags_use_the_first_identifier_for_the_filter(self):
+        self.assertEqual(carrier_from_tags("WA | k10flex"), "Wa")
+        self.assertEqual(carrier_from_tags("k10flex | WA"), "K10Flex")
+        self.assertEqual(carrier_from_tags("nova_transportadora | campanha_vip"), "Nova Transportadora")
+
+    def test_only_backup_tags_use_the_first_identifier_for_the_filter(self):
+        self.assertEqual(carrier_from_tags("wa_bkp | k10flex_bkp"), "Wa")
+        self.assertEqual(carrier_from_tags("k10flex_bkp | wa_bkp"), "K10Flex")
+
+    def test_extra_or_empty_tags_do_not_drop_or_duplicate_contacts(self):
+        raw = contacts()
+        raw["Tags"] = ["WA | wa_bkp | k10flex_bkp", "k10flex_bkp | WA", "k10flex | k10flex_bkp", ""]
+        valid = normalized(raw)
+        self.assertEqual(valid.set_index("cliente")["total_contatos"].to_dict(), {"K10Flex": 1, "Sem transportadora": 1, "Wa": 2})
+        self.assertEqual(valid[["total_contatos", "enviados", "entregues", "abertos", "falhas"]].sum().tolist(), [4, 3, 2, 1, 1])
+        self.assertEqual(len(contacts_from_campaigns(valid)), 4)
+        self.assertEqual(set(contacts_from_campaigns(valid)["tags"]), set(raw["Tags"]))
+        preview = self.preview(raw.iloc[::-1], valid)
+        self.assertEqual((preview.n_new, preview.n_updated, preview.n_unchanged), (0, 0, 3))
 
     def test_dot_separated_tags_preserve_contacts_statuses_and_original_tags(self):
         raw = contacts()
@@ -88,10 +117,11 @@ class ContactImportTests(unittest.TestCase):
             with self.subTest(tags=tags):
                 self.assertEqual(carrier_from_tags(tags), expected)
 
-    def test_auxiliary_tags_cannot_invent_or_disambiguate_a_carrier(self):
-        for tags in ("outros_bkp", "falha | bkp2 | backup", "buddylog | TopExpress | outros_bkp"):
-            with self.subTest(tags=tags), self.assertRaisesRegex(ValueError, "transportadora"):
-                carrier_from_tags(tags)
+    def test_empty_or_auxiliary_tags_use_unclassified_filter_without_blocking_import(self):
+        for tags in ("", None, " | ", "outros_bkp", "falha | bkp2 | backup"):
+            with self.subTest(tags=tags):
+                self.assertEqual(carrier_from_tags(tags), "Sem transportadora")
+        self.assertEqual(carrier_from_tags("buddylog | TopExpress | outros_bkp"), "Buddylog")
 
     def test_auxiliary_tags_are_preserved_without_changing_contact_totals(self):
         raw = contacts()
@@ -140,7 +170,6 @@ class ContactImportTests(unittest.TestCase):
 
     def test_missing_or_invalid_contact_values_reject_the_export(self):
         for column, value, reason in (
-            ("Tags", "", "Tags"), ("Tags", "flexboys | jadlog", "transportadora"),
             ("Whatsapp numbers", "551.1e12", "Whatsapp numbers"), ("Whatsapp numbers", None, "Whatsapp numbers"),
             ("Broadcast Status", "Queued", "Broadcast Status"), ("Broadcast Status", None, "Broadcast Status"),
         ):
@@ -195,6 +224,27 @@ class ContactPageTests(unittest.TestCase):
     setUp = legacy.WhatsAppPageTests.setUp
     fetch = legacy.WhatsAppPageTests.fetch
     page = legacy.WhatsAppPageTests.page
+
+    def test_upload_with_multiple_carrier_tags_uses_filter_groups_without_blocking(self):
+        raw = contacts()
+        raw["Tags"] = ["WA | wa_bkp | k10flex_bkp", "WA | wa_bkp", "k10flex | k10flex_bkp", ""]
+        app = AppTest.from_string("from views.import_page import render_import_page\nrender_import_page()", default_timeout=20).run()
+        app.file_uploader[0].upload("contacts.csv", raw.to_csv(index=False).encode("utf-8-sig"), "text/csv").run()
+        app.text_input[0].set_value("Controle interno").run()
+        app.date_input[0].set_value(date.today()).run()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.error)
+        details = app.dataframe[0].value
+        self.assertEqual(len(details), 4)
+        self.assertEqual(set(details["Transportadora"]), {"Wa", "K10Flex", "Sem transportadora"})
+        self.assertIn("WA | wa_bkp | k10flex_bkp", details["Tags"].tolist())
+        with patch.object(importer, "commit_import", return_value=9) as commit:
+            app.button[0].click().run()
+        self.assertFalse(app.exception)
+        self.assertTrue(app.success)
+        imported = commit.call_args.args[0].valid_df
+        self.assertEqual(imported["total_contatos"].sum(), 4)
+        self.assertEqual(imported["falhas"].sum(), 1)
 
     def test_upload_with_dot_separated_backup_tag(self):
         raw = contacts()

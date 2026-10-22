@@ -33,11 +33,17 @@ def is_contacts_export(raw: pd.DataFrame) -> bool:
     return "whatsappnumbers" in headers or "broadcaststatus" in headers or "boadcaststatus" in headers
 
 
-def carrier_from_tags(tags: str) -> str:
-    """Agrupa o nome da transportadora e ignora tags auxiliares genéricas."""
-    carriers = set()
-    for tag in tags.split("|"):
-        base = tag.strip()
+def carrier_from_tags(tags: str | None) -> str:
+    """Escolhe um identificador para o filtro sem bloquear pelas demais tags.
+
+    Prioriza a primeira tag principal, sem sufixo de falha/backup. Se
+    houver somente tags com sufixos, usa a primeira base identificável.
+    """
+    primary = []
+    segmented = []
+    for tag in _text(tags).split("|"):
+        original = tag.strip()
+        base = original
         previous = None
         while base != previous:
             previous = base
@@ -47,10 +53,10 @@ def carrier_from_tags(tags: str) -> str:
             ).strip()
         if not base or re.fullmatch(r"(?:outros?|falhas?|bkp|backup)(?:[\s_.-]*\d+)?", base, flags=re.IGNORECASE):
             continue
-        carriers.add(re.sub(r"[\s_]+", " ", base).strip().title())
-    if len(carriers) != 1:
-        raise ValueError("Tags deve identificar uma única transportadora, com ou sem segmentos de falha/backup.")
-    return carriers.pop()
+        carrier = re.sub(r"[\s_]+", " ", base).strip().title()
+        (primary if base == original else segmented).append(carrier)
+    candidates = primary or segmented
+    return candidates[0] if candidates else "Sem transportadora"
 
 
 def aggregate_contacts(contacts: pd.DataFrame) -> pd.DataFrame:
@@ -88,10 +94,7 @@ def parse_contacts(raw: pd.DataFrame, context: dict) -> pd.DataFrame:
     seen = set()
     for line, (_, row) in enumerate(raw.iterrows(), start=2):
         tags = " | ".join(tag.strip() for tag in _text(row[headers["tags"]]).split("|") if tag.strip())
-        try:
-            carrier = carrier_from_tags(tags)
-        except ValueError as exc:
-            raise ValueError(f"Linha {line}: {exc}") from exc
+        carrier = carrier_from_tags(tags)
         number = re.sub(r"[\s().-]", "", _text(row[headers["whatsappnumbers"]]))
         if not re.fullmatch(r"\+?[0-9]{8,15}", number):
             raise ValueError(f"Linha {line}: Whatsapp numbers deve conter um telefone válido com DDI.")
