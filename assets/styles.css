@@ -275,6 +275,54 @@ div[data-testid="stExpander"],
     color: var(--tk-negative);
 }
 
+/* Cards do WhatsApp: títulos completos e mensagem de falha legível. */
+.st-key-whatsapp-summary [data-testid="stHorizontalBlock"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12.5rem), 1fr));
+    align-items: stretch;
+    gap: 1rem;
+}
+
+.st-key-whatsapp-summary [data-testid="stColumn"] {
+    width: 100%;
+    min-width: 0;
+}
+
+.st-key-whatsapp-summary [class*="st-key-tk-accent-"][class*="-whatsapp-"] {
+    min-height: 11.25rem;
+}
+
+.st-key-whatsapp-summary [data-testid="stMetricLabel"] {
+    height: auto;
+    min-height: 2.75rem;
+    align-items: flex-start;
+}
+
+.st-key-whatsapp-summary [data-testid="stMetricLabel"] p {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+}
+
+.st-key-whatsapp-summary [data-testid="stCaptionContainer"] {
+    color: var(--tk-ink-secondary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    opacity: 1;
+}
+
+.st-key-whatsapp-summary [class*="st-key-tk-accent-negative-whatsapp-"] [data-testid="stCaptionContainer"] {
+    color: var(--tk-negative);
+    color: light-dark(#B42318, #FFB4AB);
+    font-weight: 500;
+}
+
+.st-key-whatsapp-summary [data-testid="stCaptionContainer"] p {
+    font-weight: inherit;
+}
+
 hr {
     margin: 1.4rem 0;
     border-color: var(--tk-border);

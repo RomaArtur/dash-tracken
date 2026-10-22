@@ -260,19 +260,20 @@ def render_summary(cliente: str | None, start: date, end: date) -> None:
         ("Mensagens com falha", f"{summary.falhas:,}".replace(",", ".") if summary.falhas is not None else "—",
          ":material/error:", "negative", "Falhas informadas no CSV. O percentual usa o total de contatos como base.", None),
     ]
-    for index, (col, spec) in enumerate(zip(st.columns(len(specs)), specs)):
-        label, value, icon, accent, help_text, progress = spec
-        with col:
-            with st.container(key=f"tk-accent-{accent}-whatsapp-{index}", border=True):
-                st.metric(label, value, icon=icon, help=help_text)
-                if progress is not None:
-                    st.progress(progress / 100)
-                if label == "Mensagens com falha":
-                    if summary.taxa_falha is None:
-                        st.caption("Falhas não informadas em todos os disparos.")
-                    else:
-                        caption = f"{_percentage(summary.taxa_falha)} deste público falhou"
-                        st.caption(f":red[:material/warning: {caption}]" if summary.falhas else caption)
+    with st.container(key="whatsapp-summary"):
+        for index, (col, spec) in enumerate(zip(st.columns(len(specs)), specs)):
+            label, value, icon, accent, help_text, progress = spec
+            with col:
+                with st.container(key=f"tk-accent-{accent}-whatsapp-{index}", border=True):
+                    st.metric(label, value, icon=icon, help=help_text)
+                    if progress is not None:
+                        st.progress(progress / 100)
+                    if label == "Mensagens com falha":
+                        if summary.taxa_falha is None:
+                            st.caption("Falhas não informadas em todos os disparos.")
+                        else:
+                            caption = f"{_percentage(summary.taxa_falha)} deste público falhou"
+                            st.caption(f":material/warning: {caption}" if summary.falhas else caption)
 
     if df.empty:
         st.info("Sem disparos de WhatsApp para o período e transportadora selecionados.")
