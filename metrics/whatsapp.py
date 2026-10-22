@@ -1,4 +1,4 @@
-"""Disparos de WhatsApp: um resumo por campanha, importado de CSV.
+"""Disparos de WhatsApp: contatos do CSV consolidados por campanha.
 
 Transportadora e campanha podem vir do CSV ou dos metadados da importação.
 O campo interno cliente armazena a transportadora, preservando os dados
@@ -13,12 +13,15 @@ import pandas as pd
 import streamlit as st
 
 from metrics.base import MetricDefinition
+from metrics.whatsapp_contacts import (
+    CONTACT_LABELS, contacts_from_campaigns, is_contacts_export, parse_contacts,
+)
 from repositories import metrics_repository
 from services.database import get_connection
 
 KEY = "whatsapp"
 CSV_TEMPLATE = (
-    "Transportadora;Campanha;Data de envio;Total de contatos;Enviados;Entregues;Abertos;Mensagens com falha\n"
+    "Tags,Whatsapp numbers,Broadcast Status\n"
 ).encode("utf-8-sig")
 _COUNT_COLUMNS = {
     "total_contatos": "Total de contatos",
@@ -38,6 +41,7 @@ CREATE TABLE IF NOT EXISTS metric_whatsapp_campaign (
     entregues INTEGER NOT NULL,
     abertos INTEGER NOT NULL,
     falhas INTEGER,
+    contacts_json TEXT,
     import_run_id BIGINT,
     updated_at TIMESTAMP NOT NULL,
     PRIMARY KEY (cliente, campaign_id),
@@ -52,6 +56,8 @@ def parse(raw: pd.DataFrame, context: dict | None = None) -> pd.DataFrame:
     if not isinstance(raw, pd.DataFrame):
         raise ValueError("Os disparos de WhatsApp devem ser importados de uma tabela CSV.")
     context = context or {}
+    if is_contacts_export(raw):
+        return parse_contacts(raw, context)
     cliente = str(context.get("cliente") or "").strip()
     if "Transportadora" not in raw.columns and not cliente:
         raise ValueError("Transportadora é obrigatória: informe na importação ou inclua a coluna 'Transportadora' no CSV.")
@@ -72,6 +78,7 @@ def parse(raw: pd.DataFrame, context: dict | None = None) -> pd.DataFrame:
             "disparos": 1,
             **{column: raw[source] for column, source in _COUNT_COLUMNS.items()},
             "falhas": raw.get("Mensagens com falha", pd.Series(None, index=raw.index, dtype=object)),
+            "contacts_json": pd.Series(None, index=raw.index, dtype=object),
         }
     )
 
@@ -196,6 +203,44 @@ def summarize_by_carrier(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+def render_import_context(raw: pd.DataFrame, filename: str) -> dict | None:
+    if not is_contacts_export(raw):
+        return {}
+    st.info(
+        "CSV de contatos WhatsApp identificado. Cada arquivo representa um disparo completo. "
+        "As Tags definem a transportadora: Flexboys, flexboys_falha e flexboys_bkp pertencem a Flexboys."
+    )
+    st.caption(
+        "Informe a campanha e a data do disparo. Created On é a data de cadastro do contato. "
+        "Para atualizar os status, reimporte o CSV completo usando o mesmo ID da campanha. "
+        "Para outro disparo, use um novo ID."
+    )
+    campaign_col, date_col = st.columns(2)
+    with campaign_col:
+        campaign = st.text_input("Campanha / ID", key=f"whatsapp_campaign_{filename}").strip()
+    with date_col:
+        dispatch_date = st.date_input("Data do disparo", value=None, key=f"whatsapp_date_{filename}", format="DD/MM/YYYY")
+    if not campaign or dispatch_date is None:
+        st.info("Preencha a campanha e a data do disparo para gerar a prévia da importação.")
+        return None
+    return {"campaign_id": campaign, "date": dispatch_date}
+
+
+def render_import_preview(df: pd.DataFrame) -> None:
+    contacts = contacts_from_campaigns(df)
+    if contacts.empty:
+        st.dataframe(df.drop(columns="contacts_json", errors="ignore").head(100), width="stretch", hide_index=True)
+        return
+    st.caption(
+        f"{len(contacts):,} contatos em {len(df)} disparo(s) por transportadora. "
+        "Os contadores da importação representam os resumos desses disparos. "
+        "Os indicadores são calculados pelo Broadcast Status, sem usar segmentos das Tags como status."
+    )
+    st.dataframe(contacts[list(CONTACT_LABELS)].rename(columns=CONTACT_LABELS), width="stretch", hide_index=True)
+    with st.expander("Indicadores calculados do CSV", icon=":material/analytics:"):
+        st.dataframe(summarize_by_carrier(df), width="stretch", hide_index=True)
+
+
 def render_summary(cliente: str | None, start: date, end: date) -> None:
     filters = {"cliente": cliente} if cliente else None
     df = metrics_repository.fetch_metric_df(
@@ -245,23 +290,33 @@ def render_summary(cliente: str | None, start: date, end: date) -> None:
                 width="stretch", hide_index=True,
             )
 
+        contacts = contacts_from_campaigns(df)
+        if not contacts.empty:
+            with st.expander("Contatos dos disparos", icon=":material/contacts:"):
+                st.dataframe(
+                    contacts.sort_values(["date", "cliente", "whatsapp_number"], ascending=[False, True, True])
+                    [list(CONTACT_LABELS)].rename(columns=CONTACT_LABELS),
+                    width="stretch", hide_index=True,
+                )
+                if df["contacts_json"].isna().any():
+                    st.caption("Disparos importados pelo resumo antigo não possuem detalhes de contatos.")
+
     with st.expander("Como importar os disparos de WhatsApp", icon=":material/upload_file:"):
         st.write(
-            "Em Importar Dados, escolha Disparos WhatsApp e envie um CSV separado por ponto e vírgula, "
-            "com uma linha por campanha/disparo de cada transportadora. "
-            "O mesmo arquivo pode conter todas as transportadoras. "
-            "O nome whatsapp_<transportadora>_<campanha>.csv sugere os campos que não estiverem no CSV."
+            "Em Importar Dados, envie o CSV de contatos com as colunas Tags, Whatsapp numbers e Broadcast Status. "
+            "Arquivos separados por vírgula ou ponto e vírgula são reconhecidos automaticamente. "
+            "Informe a campanha / ID e a data do disparo na tela. O arquivo pode conter várias transportadoras. "
+            "Os segmentos falha e bkp das Tags são agrupados pelo nome da transportadora."
         )
         st.write(
-            "Use as colunas Transportadora, Campanha, Data de envio, Total de contatos, Enviados, Entregues, Abertos e Mensagens com falha. "
-            "A data deve estar em AAAA-MM-DD, opcionalmente com HH:MM:SS. "
-            "Se o arquivo tiver uma única transportadora ou campanha, esses dados podem ser informados na importação. "
-            "Para um novo disparo da mesma campanha, use um ID diferente. "
-            "As taxas usam o total de contatos como base. CSVs antigos sem Mensagens com falha continuam aceitos; "
-            "reimporte-os com essa coluna para completar o indicador de falhas."
+            "Broadcast Status aceita Sent (enviado), Delivered (entregue), Read (lido) e Failed (falha). "
+            "Read também conta como entregue e enviado; Delivered também conta como enviado. "
+            "As taxas usam o total de contatos como base. Reimportar o CSV completo com o mesmo ID atualiza "
+            "o disparo existente. Para um novo disparo, use outro ID. "
+            "O formato anterior de resumo por campanha continua aceito."
         )
         st.download_button(
-            "Baixar modelo CSV", data=CSV_TEMPLATE, file_name="whatsapp_transportadoras_campanhas.csv",
+            "Baixar modelo CSV", data=CSV_TEMPLATE, file_name="whatsapp_contatos.csv",
             mime="text/csv", key="whatsapp_csv_template", icon=":material/download:",
         )
 
@@ -272,7 +327,7 @@ DEFINITION = MetricDefinition(
     icon=":material/chat:",
     table_name="metric_whatsapp_campaign",
     key_columns=("cliente", "campaign_id"),
-    value_columns=("date", "disparos", "total_contatos", "enviados", "entregues", "abertos", "falhas"),
+    value_columns=("date", "disparos", "total_contatos", "enviados", "entregues", "abertos", "falhas", "contacts_json"),
     primary_value_column="disparos",
     ddl=DDL,
     parse=parse,
@@ -282,8 +337,14 @@ DEFINITION = MetricDefinition(
     file_format="csv",
     csv_campaign_column="Campanha",
     csv_client_column="Transportadora",
+    detect_csv=is_contacts_export,
+    render_import_context=render_import_context,
+    render_import_preview=render_import_preview,
     all_dimensions_label="Todas as transportadoras",
-    schema_updates=("ALTER TABLE metric_whatsapp_campaign ADD COLUMN IF NOT EXISTS falhas INTEGER",),
+    schema_updates=(
+        "ALTER TABLE metric_whatsapp_campaign ADD COLUMN IF NOT EXISTS falhas INTEGER",
+        "ALTER TABLE metric_whatsapp_campaign ADD COLUMN IF NOT EXISTS contacts_json TEXT",
+    ),
     render_summary=render_summary,
     show_trend_charts=False,
     show_in_combined_charts=False,

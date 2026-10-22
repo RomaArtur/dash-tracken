@@ -88,6 +88,17 @@ def render_import_page() -> None:
 
     default_index = 0
     detected = detect_metric_from_filename(uploaded_file.name)
+    csv_raw = None
+    if uploaded_file.name.lower().endswith(".csv"):
+        try:
+            csv_raw = importer.load_csv(uploaded_file.getvalue())
+        except importer.ImportValidationError as exc:
+            st.error(str(exc))
+            return
+        detected = next(
+            (key for key, candidate in METRICS.items() if candidate.detect_csv and candidate.detect_csv(csv_raw)),
+            detected,
+        )
     if detected in metric_keys:
         default_index = metric_keys.index(detected)
 
@@ -103,20 +114,24 @@ def render_import_page() -> None:
     try:
         context: dict | None = None
         if metric.file_format == "csv":
-            raw = importer.load_csv(uploaded_file.getvalue())
+            raw = csv_raw
+            context = metric.render_import_context(raw, uploaded_file.name) if metric.render_import_context else {}
+            if context is None:
+                return
             campaign_in_file = (
                 metric.csv_campaign_column is not None and metric.csv_campaign_column in raw.columns
             )
             client_in_file = (
                 metric.csv_client_column is not None and metric.csv_client_column in raw.columns
             )
-            metadata = _render_csv_metadata_inputs(
-                metric, uploaded_file.name, campaign_in_file=campaign_in_file, client_in_file=client_in_file
-            )
-            if metadata is None:
-                return
-            cliente, campanha = metadata
-            context = {"cliente": cliente, "campaign_id": campanha}
+            if not context:
+                metadata = _render_csv_metadata_inputs(
+                    metric, uploaded_file.name, campaign_in_file=campaign_in_file, client_in_file=client_in_file
+                )
+                if metadata is None:
+                    return
+                cliente, campanha = metadata
+                context = {"cliente": cliente, "campaign_id": campanha}
         elif metric.file_format == "xlsx":
             raw = importer.load_xlsx(uploaded_file.getvalue(), metric.xlsx_sheet)
         else:
@@ -154,7 +169,10 @@ def render_import_page() -> None:
             st.dataframe(preview.invalid_df, width="stretch", hide_index=True)
 
     st.subheader("Prévia dos dados")
-    st.dataframe(preview.valid_df.head(100), width="stretch", hide_index=True)
+    if metric.render_import_preview:
+        metric.render_import_preview(preview.valid_df)
+    else:
+        st.dataframe(preview.valid_df.head(100), width="stretch", hide_index=True)
 
     nothing_to_do = preview.n_new == 0 and preview.n_updated == 0
     if nothing_to_do:

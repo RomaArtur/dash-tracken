@@ -14,6 +14,7 @@ feita além do próprio registro em import_runs.
 """
 from __future__ import annotations
 
+import csv
 import io
 import json
 import logging
@@ -72,7 +73,7 @@ def load_json(file_bytes: bytes) -> dict:
 
 
 def load_csv(file_bytes: bytes) -> pd.DataFrame:
-    """Lê um CSV ponto-e-vírgula exportado de sistemas externos (ex.:
+    """Lê um CSV com vírgula, ponto-e-vírgula ou tabulação (ex.:
     CRM de e-mail marketing). Tenta utf-8-sig primeiro (cobre o BOM que
     editores/exportadores do Windows costumam gravar) e cai para
     cp1252, comum em exports de ferramentas BR quando não é UTF-8."""
@@ -86,8 +87,13 @@ def load_csv(file_bytes: bytes) -> pd.DataFrame:
         raise ImportValidationError("Não foi possível decodificar o arquivo CSV (encoding desconhecido).")
 
     try:
-        return pd.read_csv(io.StringIO(text), sep=";", dtype=str)
-    except pd.errors.ParserError as exc:
+        header = text.splitlines()[0] if text.splitlines() else ""
+        try:
+            separator = csv.Sniffer().sniff(header, delimiters=",;\t").delimiter
+        except csv.Error:
+            separator = ";"
+        return pd.read_csv(io.StringIO(text), sep=separator, dtype=str)
+    except (pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
         raise ImportValidationError(f"Arquivo CSV inválido: {exc}") from exc
 
 
