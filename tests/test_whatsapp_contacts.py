@@ -52,6 +52,30 @@ class ContactImportTests(unittest.TestCase):
                 self.assertEqual(carrier_from_tags(tag), "Flexboys")
         self.assertEqual(carrier_from_tags("expresso_do_sul_falha | expresso_do_sul_bkp"), "Expresso Do Sul")
 
+    def test_dot_separated_segments_group_with_the_carrier(self):
+        for tags in (
+            "MBFLEX | mbflex.bkp", "mbflex.bkp", "MBFLEX.FALHA | mbflex.backup2",
+            "mbflex.bkp.2", "mbflex_bkp_2", "mbflex.bkp.falha",
+            "outros.bkp | MBFLEX | mbflex.bkp", "bkp.2 | mbflex",
+        ):
+            with self.subTest(tags=tags):
+                self.assertEqual(carrier_from_tags(tags), "Mbflex")
+        self.assertEqual(carrier_from_tags("expresso.do.sul | expresso.do.sul.bkp"), "Expresso.Do.Sul")
+        with self.assertRaisesRegex(ValueError, "transportadora"):
+            carrier_from_tags("mbflex | jadlog.bkp")
+
+    def test_dot_separated_tags_preserve_contacts_statuses_and_original_tags(self):
+        raw = contacts()
+        raw["Tags"] = ["MBFLEX", "MBFLEX | mbflex.bkp", "MBFLEX", "mbflex.bkp"]
+        valid = normalized(raw)
+        self.assertEqual(len(valid), 1)
+        self.assertEqual(valid.iloc[0]["cliente"], "Mbflex")
+        self.assertEqual(valid.iloc[0][["total_contatos", "enviados", "entregues", "abertos", "falhas"]].tolist(), [4, 3, 2, 1, 1])
+        details = contacts_from_campaigns(valid)
+        self.assertEqual(details["tags"].tolist(), raw["Tags"].tolist())
+        preview = self.preview(raw.iloc[::-1], valid)
+        self.assertEqual((preview.n_new, preview.n_updated, preview.n_unchanged), (0, 0, 1))
+
     def test_auxiliary_tags_are_not_counted_as_additional_carriers(self):
         for tags, expected in (
             ("buddylog | buddylog_bkp | outros_bkp", "Buddylog"),
@@ -171,6 +195,22 @@ class ContactPageTests(unittest.TestCase):
     setUp = legacy.WhatsAppPageTests.setUp
     fetch = legacy.WhatsAppPageTests.fetch
     page = legacy.WhatsAppPageTests.page
+
+    def test_upload_with_dot_separated_backup_tag(self):
+        raw = contacts()
+        raw["Tags"] = ["MBFLEX", "MBFLEX", "MBFLEX | mbflex.bkp", "mbflex.bkp"]
+        app = AppTest.from_string("from views.import_page import render_import_page\nrender_import_page()", default_timeout=20).run()
+        app.file_uploader[0].upload("contacts.csv", raw.to_csv(index=False).encode("utf-8-sig"), "text/csv").run()
+        app.text_input[0].set_value("Controle interno Mbflex").run()
+        app.date_input[0].set_value(date.today()).run()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.error)
+        self.assertEqual(app.metric[1].value, "1")
+        details = app.dataframe[0].value
+        self.assertEqual(len(details), 4)
+        self.assertEqual(set(details["Transportadora"]), {"Mbflex"})
+        self.assertIn("MBFLEX | mbflex.bkp", details["Tags"].tolist())
+        self.assertFalse(app.button[0].disabled)
 
     def test_upload_with_auxiliary_tags_generates_preview_for_each_carrier(self):
         raw = contacts()

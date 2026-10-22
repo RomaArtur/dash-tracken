@@ -41,8 +41,11 @@ def carrier_from_tags(tags: str) -> str:
         previous = None
         while base != previous:
             previous = base
-            base = re.sub(r"[\s_-]+(?:falhas?|bkp|backup)\s*\d*$", "", base, flags=re.IGNORECASE).strip()
-        if not base or re.fullmatch(r"(?:outros?|falhas?|bkp|backup)\s*\d*", base, flags=re.IGNORECASE):
+            base = re.sub(
+                r"[\s_.-]+(?:falhas?|bkp|backup)(?:[\s_.-]*\d+)?$",
+                "", base, flags=re.IGNORECASE,
+            ).strip()
+        if not base or re.fullmatch(r"(?:outros?|falhas?|bkp|backup)(?:[\s_.-]*\d+)?", base, flags=re.IGNORECASE):
             continue
         carriers.add(re.sub(r"[\s_]+", " ", base).strip().title())
     if len(carriers) != 1:
