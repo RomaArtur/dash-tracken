@@ -208,7 +208,8 @@ def render_import_context(raw: pd.DataFrame, filename: str) -> dict | None:
         return {}
     st.info(
         "CSV de contatos WhatsApp identificado. Cada arquivo representa um disparo completo. "
-        "As Tags definem a transportadora: Flexboys, flexboys_falha e flexboys_bkp pertencem a Flexboys."
+        "As Tags definem a transportadora: Flexboys, flexboys_falha e flexboys_bkp pertencem a Flexboys. "
+        "Tags auxiliares como outros_bkp são preservadas nos detalhes e não criam transportadoras."
     )
     st.caption(
         "Informe a campanha e a data do disparo. Created On é a data de cadastro do contato. "
@@ -306,7 +307,8 @@ def render_summary(cliente: str | None, start: date, end: date) -> None:
             "Em Importar Dados, envie o CSV de contatos com as colunas Tags, Whatsapp numbers e Broadcast Status. "
             "Arquivos separados por vírgula ou ponto e vírgula são reconhecidos automaticamente. "
             "Informe a campanha / ID e a data do disparo na tela. O arquivo pode conter várias transportadoras. "
-            "Os segmentos falha e bkp das Tags são agrupados pelo nome da transportadora."
+            "Os segmentos falha e bkp das Tags são agrupados pelo nome da transportadora. "
+            "Tags genéricas como outros_bkp, falha e backup não identificam uma transportadora."
         )
         st.write(
             "Broadcast Status aceita Sent (enviado), Delivered (entregue), Read (lido) e Failed (falha). "

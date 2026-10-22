@@ -52,6 +52,39 @@ class ContactImportTests(unittest.TestCase):
                 self.assertEqual(carrier_from_tags(tag), "Flexboys")
         self.assertEqual(carrier_from_tags("expresso_do_sul_falha | expresso_do_sul_bkp"), "Expresso Do Sul")
 
+    def test_auxiliary_tags_are_not_counted_as_additional_carriers(self):
+        for tags, expected in (
+            ("buddylog | buddylog_bkp | outros_bkp", "Buddylog"),
+            ("buddylog | outros_bkp", "Buddylog"),
+            ("TopExpress | outros_bkp", "Topexpress"),
+            ("MBI | outros_bkp", "Mbi"),
+            ("outros_bkp | buddylog_bkp", "Buddylog"),
+            (" OUTROS_BKP2 | falha | backup3 | flexboys_falha", "Flexboys"),
+        ):
+            with self.subTest(tags=tags):
+                self.assertEqual(carrier_from_tags(tags), expected)
+
+    def test_auxiliary_tags_cannot_invent_or_disambiguate_a_carrier(self):
+        for tags in ("outros_bkp", "falha | bkp2 | backup", "buddylog | TopExpress | outros_bkp"):
+            with self.subTest(tags=tags), self.assertRaisesRegex(ValueError, "transportadora"):
+                carrier_from_tags(tags)
+
+    def test_auxiliary_tags_are_preserved_without_changing_contact_totals(self):
+        raw = contacts()
+        raw.loc[0, "Tags"] = "buddylog | buddylog_bkp | outros_bkp"
+        raw.loc[1, "Tags"] = "buddylog | outros_bkp"
+        raw.loc[2, "Tags"] = "TopExpress | outros_bkp"
+        raw.loc[3, "Tags"] = "MBI | outros_bkp"
+        valid = normalized(raw)
+        grouped = valid.set_index("cliente")
+        self.assertEqual(grouped.loc["Buddylog", "total_contatos"], 2)
+        self.assertEqual(grouped.loc["Topexpress", "total_contatos"], 1)
+        self.assertEqual(grouped.loc["Mbi", "total_contatos"], 1)
+        self.assertEqual(whatsapp.summarize(valid).contatos, 4)
+        self.assertEqual(whatsapp.summarize(valid).falhas, 1)
+        details = contacts_from_campaigns(valid)
+        self.assertTrue(details["tags"].str.contains("outros_bkp").all())
+
     def test_original_tags_and_phone_are_saved_without_other_contact_fields(self):
         raw = contacts().assign(**{"First name": "Pessoa exemplo", "Emails": "exemplo@example.test"})
         frame = normalized(raw)
@@ -138,6 +171,25 @@ class ContactPageTests(unittest.TestCase):
     setUp = legacy.WhatsAppPageTests.setUp
     fetch = legacy.WhatsAppPageTests.fetch
     page = legacy.WhatsAppPageTests.page
+
+    def test_upload_with_auxiliary_tags_generates_preview_for_each_carrier(self):
+        raw = contacts()
+        raw["Tags"] = [
+            "buddylog | buddylog_bkp | outros_bkp", "TopExpress | outros_bkp",
+            "MBI | outros_bkp", "mapspremium",
+        ]
+        app = AppTest.from_string("from views.import_page import render_import_page\nrender_import_page()", default_timeout=20).run()
+        app.file_uploader[0].upload("contacts.csv", raw.to_csv(index=False).encode("utf-8-sig"), "text/csv").run()
+        app.text_input[0].set_value("Buddylog_TopExpress_MBI_mapspremium").run()
+        app.date_input[0].set_value(date.today()).run()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.error)
+        self.assertEqual(app.metric[1].value, "4")
+        details = app.dataframe[0].value
+        self.assertEqual(set(details["Transportadora"]), {"Buddylog", "Topexpress", "Mbi", "Mapspremium"})
+        self.assertEqual(len(details), 4)
+        self.assertIn("outros_bkp", details.iloc[0]["Tags"])
+        self.assertFalse(app.button[0].disabled)
 
     def test_contact_export_is_detected_without_filename_prefix_and_requires_metadata(self):
         app = AppTest.from_string("from views.import_page import render_import_page\nrender_import_page()", default_timeout=20).run()

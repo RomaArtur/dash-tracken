@@ -34,7 +34,7 @@ def is_contacts_export(raw: pd.DataFrame) -> bool:
 
 
 def carrier_from_tags(tags: str) -> str:
-    """Remove segmentos de falha/backup, preservando nomes compostos."""
+    """Agrupa o nome da transportadora e ignora tags auxiliares genéricas."""
     carriers = set()
     for tag in tags.split("|"):
         base = tag.strip()
@@ -42,8 +42,9 @@ def carrier_from_tags(tags: str) -> str:
         while base != previous:
             previous = base
             base = re.sub(r"[\s_-]+(?:falhas?|bkp|backup)\s*\d*$", "", base, flags=re.IGNORECASE).strip()
-        if base:
-            carriers.add(re.sub(r"[\s_]+", " ", base).strip().title())
+        if not base or re.fullmatch(r"(?:outros?|falhas?|bkp|backup)\s*\d*", base, flags=re.IGNORECASE):
+            continue
+        carriers.add(re.sub(r"[\s_]+", " ", base).strip().title())
     if len(carriers) != 1:
         raise ValueError("Tags deve identificar uma única transportadora, com ou sem segmentos de falha/backup.")
     return carriers.pop()
