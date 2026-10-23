@@ -18,6 +18,11 @@ AMBER = "#D98C1F"
 MUTED = "#C7C9CC"
 NEGATIVE = "#D64545"
 
+AMAZON_GREENS = (
+    "#14532D", "#166534", "#1C7C3D", "#238B45", "#32A05A",
+    "#4FB36A", "#74C787", "#9AD5A7", "#BDE5C6",
+)
+
 ACCENTS: dict[str, str] = {
     "green": GREEN,
     "purple": PURPLE,

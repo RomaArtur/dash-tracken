@@ -11,8 +11,8 @@ Formato real observado no Excel:
 carregam informação por linha, então não viram coluna na tabela.
 `source_detail` identifica o canal do Tracken (ver
 metrics/amazon_common.py); pode haver mais de uma linha por
-(dia, canal) se `device_type` variar, por isso o parse agrupa somando
-`visits_num` em vez de assumir uma linha por dia.
+(dia, canal) se `device_type` variar. A validação converte as visitas
+em números antes de agrupá-las por dia e canal.
 
 Não vem por JSON/CSV como as demais métricas: é uma aba de um arquivo
 Excel de múltiplas abas (ver `file_format='xlsx'` e `xlsx_sheet`) — o
@@ -48,6 +48,7 @@ def parse(raw: pd.DataFrame, context: dict | None = None) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Colunas ausentes na aba 'traffic': {', '.join(sorted(missing))}")
 
+    raw = raw.dropna(how="all")
     df = pd.DataFrame(
         {
             "date": raw["day"],
@@ -55,7 +56,6 @@ def parse(raw: pd.DataFrame, context: dict | None = None) -> pd.DataFrame:
             "visits": raw["visits_num"],
         }
     )
-    df = df.groupby(["date", "channel"], as_index=False, dropna=False)["visits"].sum()
     return df
 
 
@@ -75,7 +75,11 @@ def validate(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     motivo = motivo.where(~bad_channel, motivo + "canal não reconhecido; ")
 
     visits_numeric = pd.to_numeric(df["visits"], errors="coerce")
-    bad_visits = visits_numeric.isna() | (visits_numeric < 0)
+    bad_visits = (
+        visits_numeric.isna()
+        | ~visits_numeric.between(0, 2_147_483_647)
+        | visits_numeric.ne(visits_numeric.round())
+    ).fillna(True)
     motivo = motivo.where(~bad_visits, motivo + "visits_num inválido; ")
 
     invalid_mask = bad_date | bad_channel | bad_visits
@@ -86,6 +90,7 @@ def validate(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     valid["date"] = parsed_date.loc[~invalid_mask].dt.date
     valid["channel"] = channel_mapped.loc[~invalid_mask]
     valid["visits"] = visits_numeric.loc[~invalid_mask].astype(int)
+    valid = valid.groupby(["date", "channel"], as_index=False)["visits"].sum()
 
     return valid, invalid
 
@@ -102,7 +107,7 @@ DEFINITION = MetricDefinition(
     parse=parse,
     validate=validate,
     date_column="date",
-    accent="amber",
+    accent="green",
     file_format="xlsx",
     xlsx_sheet="traffic",
     standalone_page=False,

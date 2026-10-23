@@ -19,7 +19,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from metrics.base import MetricDefinition
-from utils.tokens import MUTED, accent_color
+from utils.tokens import AMAZON_GREENS, MUTED, accent_color
 
 _LAYOUT_DEFAULTS = dict(
     margin=dict(l=10, r=10, t=10, b=10),
@@ -36,6 +36,13 @@ def _tint(hex_color: str, alpha: float = 0.12) -> str:
     hex_color = hex_color.lstrip("#")
     r, g, b = (int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
     return f"rgba({r}, {g}, {b}, {alpha})"
+
+
+def _contrast_text(hex_color: str) -> str:
+    channels = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    linear = [value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4 for value in channels]
+    luminance = sum(value * weight for value, weight in zip(linear, (0.2126, 0.7152, 0.0722)))
+    return "#000000" if luminance > 0.179 else "#FFFFFF"
 
 
 def _week_range_label(monday) -> str:
@@ -206,7 +213,9 @@ def proportion_pie(totals: dict[str, float], metrics: list[MetricDefinition]) ->
     return donut_breakdown(labels, values, colors)
 
 
-def funnel_chart(stage_labels: list[str], stage_values: list[float], accent: str = "green") -> go.Figure:
+def funnel_chart(
+    stage_labels: list[str], stage_values: list[float], accent: str = "green", *, colors: tuple[str, ...] | None = None
+) -> go.Figure:
     """Funil de conversão (ex.: etapas de cadastro de vendedor) — usa
     go.Funnel nativo do Plotly, que já cuida de desenhar a proporção
     entre etapas e o percentual em relação à primeira."""
@@ -215,12 +224,32 @@ def funnel_chart(stage_labels: list[str], stage_values: list[float], accent: str
         go.Funnel(
             y=stage_labels,
             x=stage_values,
-            marker=dict(color=color),
+            marker=dict(color=list(colors) if colors else color),
+            insidetextfont=dict(color=[_contrast_text(c) for c in colors]) if colors else None,
             textinfo="value+percent initial",
             connector=dict(line=dict(color=MUTED, width=1)),
         )
     )
     fig.update_layout(**_LAYOUT_DEFAULTS)
+    return fig
+
+
+def conversion_bars(conversions: pd.DataFrame) -> go.Figure:
+    rates = conversions["rate"]
+    fig = go.Figure(go.Bar(
+        x=rates, y=conversions["label"], orientation="h",
+        marker=dict(color=list(AMAZON_GREENS[:len(conversions)]), cornerradius=4),
+        text=[f"{rate:.1f}%" if pd.notna(rate) else "" for rate in rates],
+        textposition="outside", cliponaxis=False,
+        customdata=conversions[["converted", "base"]].to_numpy(),
+        hovertemplate="%{y}<br>%{customdata[0]:,.0f} / %{customdata[1]:,.0f}<br><b>%{x:.1f}%</b><extra></extra>",
+    ))
+    for row in conversions.itertuples():
+        if pd.isna(row.rate):
+            fig.add_annotation(x=0, y=row.label, text="n/a", showarrow=False, xanchor="left")
+    fig.update_layout(**_LAYOUT_DEFAULTS, height=400, bargap=0.35)
+    fig.update_xaxes(title="Conversão (%)", range=[0, max(100, rates.max() if rates.notna().any() else 100) * 1.15])
+    fig.update_yaxes(autorange="reversed", showgrid=False, type="category")
     return fig
 
 

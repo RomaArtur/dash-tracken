@@ -260,18 +260,8 @@ def funnel_stage_counts(start: date, end: date) -> tuple[list[str], list[int]]:
     início de cadastro no período já chegaram até ali. Retorna duas
     listas vazias se não houver nenhum vendedor no período."""
     from metrics import METRICS
-    from metrics.amazon_common import FUNNEL_STAGE_COLUMNS
+    from services.amazon_conversions import funnel_counts
 
     conn = get_connection()
     df = metrics_repository.fetch_metric_df(conn, METRICS["amazon_funnel"], date_from=start, date_to=end)
-    if df.empty:
-        return [], []
-
-    labels = [label for _, label in FUNNEL_STAGE_COLUMNS]
-    values = []
-    for column, _ in FUNNEL_STAGE_COLUMNS:
-        if column == "siv_approved_indicator":
-            values.append(int((df[column] == 1).sum()))
-        else:
-            values.append(int(df[column].notna().sum()))
-    return labels, values
+    return funnel_counts(df)

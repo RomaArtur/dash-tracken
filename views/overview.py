@@ -15,6 +15,7 @@ from metrics import METRICS
 from repositories import import_repository
 from services import metrics_service as ms
 from services.database import get_connection
+from utils.tokens import AMAZON_GREENS
 
 
 def render_overview() -> None:
@@ -78,7 +79,7 @@ def render_overview() -> None:
         journey_labels = ["Cliques enviados", "Visitas confirmadas (Amazon)"] + stage_labels
         journey_values = [cliques, visitas] + stage_values
         st.plotly_chart(
-            charts.funnel_chart(journey_labels, journey_values, accent="amber"),
+            charts.funnel_chart(journey_labels, journey_values, colors=AMAZON_GREENS[:len(journey_labels)]),
             width="stretch",
             theme="streamlit",
             height=480,

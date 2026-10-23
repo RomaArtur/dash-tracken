@@ -67,7 +67,7 @@ def parse(raw: pd.DataFrame, context: dict | None = None) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Colunas ausentes na aba 'funnel': {', '.join(sorted(missing))}")
 
-    df = raw[list(_SOURCE_COLUMNS)].copy()
+    df = raw.dropna(how="all")[list(_SOURCE_COLUMNS)].copy()
     df = df.rename(columns={"source_detail": "channel"})
     return df
 
@@ -151,7 +151,7 @@ DEFINITION = MetricDefinition(
     parse=parse,
     validate=validate,
     date_column="date",
-    accent="amber",
+    accent="green",
     file_format="xlsx",
     xlsx_sheet="funnel",
     standalone_page=False,
