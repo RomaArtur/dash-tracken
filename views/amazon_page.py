@@ -16,7 +16,9 @@ from metrics.amazon_common import CHANNEL_LABELS
 from metrics import METRICS
 from repositories import metrics_repository
 from services import metrics_service as ms
+from services.amazon_conversions import conversion_rates, funnel_counts
 from services.database import get_connection
+from utils.tokens import AMAZON_GREENS
 
 
 def render_amazon_page() -> None:
@@ -34,7 +36,7 @@ def render_amazon_page() -> None:
         clicks = ms.clicks_sent(channel_key, start, end)
         visits = ms.traffic_visits(channel_key, start, end)
         with col:
-            with st.container(key=f"tk-accent-amber-amazon-{channel_key}", border=True):
+            with st.container(key=f"tk-accent-green-amazon-{channel_key}", border=True):
                 st.markdown(f"**{channel_label}**")
                 st.metric("Visitas confirmadas (Amazon)", visits, icon=":material/travel_explore:")
                 if clicks is None:
@@ -55,14 +57,47 @@ def render_amazon_page() -> None:
         st.info("Sem vendedores com início de cadastro no período selecionado.")
         return
 
-    stage_labels, stage_values = ms.funnel_stage_counts(start, end)
+    stage_labels, stage_values = funnel_counts(funnel_df)
 
     st.plotly_chart(
-        charts.funnel_chart(stage_labels, stage_values, accent="amber"),
+        charts.funnel_chart(stage_labels, stage_values, colors=AMAZON_GREENS[:len(stage_labels)]),
         width="stretch",
         theme="streamlit",
         height=380,
     )
+
+    st.divider()
+    st.subheader("Conversão entre etapas")
+    st.caption(
+        "Base: vendedores que iniciaram o cadastro no período selecionado, com o avanço registrado "
+        "no último arquivo importado. Tráfego considera as visitas da Amazon no mesmo período."
+    )
+    traffic_df = metrics_repository.fetch_metric_df(conn, METRICS["amazon_traffic"], date_from=start, date_to=end)
+    conversions = conversion_rates(funnel_df, traffic_df)
+    indexed = conversions.set_index("key")
+    for col, key in zip(st.columns(3), ("traffic_rs", "rs_rtl", "rs_launch")):
+        row = indexed.loc[key]
+        with col:
+            with st.container(key=f"tk-accent-green-amazon-conversion-{key}", border=True):
+                rate = f"{row['rate']:.1f}%".replace(".", ",") if pd.notna(row["rate"]) else "—"
+                st.metric(row["label"], rate, icon=":material/trending_up:")
+                st.caption(
+                    f"{int(row['converted'])} de {int(row['base'])}"
+                    if pd.notna(row["base"]) and row["base"] > 0 else "Sem base para calcular a conversão."
+                )
+    st.plotly_chart(charts.conversion_bars(conversions), width="stretch", theme="streamlit", height=400)
+    with st.expander("Bases e cálculos das conversões", icon=":material/calculate:"):
+        st.dataframe(
+            conversions[["label", "base", "converted", "rate"]].rename(columns={
+                "label": "Conversão", "base": "Base", "converted": "Convertidos", "rate": "Taxa (%)",
+            }),
+            column_config={"Taxa (%)": st.column_config.NumberColumn(format="%.1f%%")},
+            width="stretch", hide_index=True,
+        )
+        st.caption(
+            "Taxa = convertidos ÷ base × 100. Sem base, a taxa aparece como n/a. "
+            "A conversão FBA usa os vendedores elegíveis para FBA como base."
+        )
 
     with st.expander("Vendedores no período", icon=":material/list_alt:"):
         display_df = funnel_df.rename(
