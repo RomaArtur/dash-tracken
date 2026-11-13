@@ -78,6 +78,9 @@ def clear_cache() -> None:
     """Invalida os dados cacheados. Chamada após toda importação
     confirmada para que o dashboard nunca mostre dados desatualizados."""
     load_daily_series_cached.clear()
+    from services.seller_search import load_contacts_cached
+
+    load_contacts_cached.clear()
 
 
 def total_all_time(daily_df: pd.DataFrame) -> float:

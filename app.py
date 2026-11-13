@@ -23,6 +23,7 @@ from views.import_history import render_import_history
 from views.import_page import render_import_page
 from views.metric_page import render_metric_page
 from views.overview import render_overview
+from views.seller_search import render_seller_search
 
 setup_logging()
 
@@ -42,6 +43,9 @@ with st.sidebar:
 
 overview_page = st.Page(
     render_overview, title="Visão Geral", icon=":material/space_dashboard:", url_path="visao-geral", default=True
+)
+seller_search_page = st.Page(
+    render_seller_search, title="Buscar sellers", icon=":material/person_search:", url_path="buscar-sellers"
 )
 import_page = st.Page(
     render_import_page, title="Importar Dados", icon=":material/upload_file:", url_path="importar-dados"
@@ -70,7 +74,7 @@ metric_pages.append(amazon_page)
 
 navigation = st.navigation(
     {
-        "Geral": [overview_page],
+        "Geral": [overview_page, seller_search_page],
         "Métricas": metric_pages,
         "Dados": [import_page, history_page],
     }
