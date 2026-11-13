@@ -1,4 +1,4 @@
-"""Busca por tags/telefone e histórico, usando exclusivamente contatos sintéticos."""
+"""Busca no cadastro e histórico por telefone, somente com dados sintéticos."""
 from datetime import date
 import unittest
 from unittest.mock import patch
@@ -6,197 +6,197 @@ from unittest.mock import patch
 import pandas as pd
 from streamlit.testing.v1 import AppTest
 
-from metrics import METRICS, whatsapp
-from metrics.whatsapp_contacts import CONTACT_COLUMNS, contacts_from_campaigns
+from metrics import METRICS, sellers, whatsapp
+from metrics.whatsapp_contacts import contacts_from_campaigns
 from repositories import metrics_repository
 from services import metrics_service as ms, seller_search as search
-from views import seller_search as page
 
 
 def sample_campaigns():
     frames = []
-    for campaign, dispatch, tags, number, status in (
-        ("old", date(2026, 1, 1), "Flexboys | Amazon | seller: João [1]", "+5511000000001", "Sent"),
-        ("new", date(2026, 11, 12), "Jadlog | Shopee | seller: João [1]", "+5511000000001", "Read"),
-        ("new", date(2026, 11, 12), "Flexboys | Mercado Livre | seller_id: A-02", "+5511000000002", "Delivered"),
-        ("other", date(2026, 11, 12), "Nova Rota | Loja Nova | seller: Exemplo", "+5511000000003", "Failed"),
+    for campaign, dispatch, tags, status in (
+        ("old", date(2026, 1, 1), "Flexboys | Amazon", "Sent"),
+        ("new", date(2026, 11, 12), "Jadlog | Shopee", "Read"),
     ):
-        raw = pd.DataFrame([{"Tags": tags, "Whatsapp numbers": number, "Broadcast Status": status}])
+        raw = pd.DataFrame([{"Tags": tags, "Whatsapp numbers": "+5511000000001", "Broadcast Status": status}])
         valid, invalid = whatsapp.validate(whatsapp.parse(raw, {"campaign_id": campaign, "date": dispatch}))
         assert invalid.empty
         frames.append(valid)
     return pd.concat(frames, ignore_index=True)
 
 
+def sample_directory():
+    raw = pd.DataFrame([
+        ["5511000000001", "Amazon", "Flexboys", "João [1]"],
+        ["5511000000001", "Shopee", "Jadlog", "João [1]"],
+        ["5511000000001", "Amazon", "Flexboys", "Outro seller"],
+        ["5511000000002", "Mercado Livre", "Flexboys", "Loja A-02"],
+        ["5511000000003", "Loja Nova", "Nova Rota", "Exemplo"],
+    ], columns=list(sellers.LABELS.values()))
+    valid, invalid = sellers.validate(sellers.parse(raw))
+    assert invalid.empty
+    return valid
+
+
 class SellerSearchTests(unittest.TestCase):
     def setUp(self):
-        self.contacts = contacts_from_campaigns(sample_campaigns())
+        self.contacts = sample_directory()
 
-    def test_filters_combine_carrier_tag_and_phone(self):
-        found = search.filter_contacts(
-            self.contacts, carriers=["flexboys"], marketplace_tags=["AMAZON"], phone_query="(11) 00000-0001",
-        )
-        self.assertEqual(found["campaign_id"].tolist(), ["old"])
+    def test_combined_filters_match_the_same_link(self):
+        found = search.filter_contacts(self.contacts, carriers=["flexboys"], marketplaces=["AMAZON"],
+                                       seller_query="joao [1]", phone_query="(11) 00000-0001")
+        self.assertEqual(found["seller_name"].tolist(), ["João [1]"])
+        self.assertTrue(search.filter_contacts(self.contacts, carriers=["Flexboys"], marketplaces=["Shopee"]).empty)
 
-    def test_filters_do_not_cross_unrelated_campaigns_for_the_same_phone(self):
-        found = search.filter_contacts(self.contacts, carriers=["Flexboys"], marketplace_tags=["Shopee"])
-        self.assertTrue(found.empty)
+    def test_multiselect_uses_or_within_each_field(self):
+        found = search.filter_contacts(self.contacts, carriers=["Flexboys", "Jadlog"], marketplaces=["Amazon", "Mercado Livre"])
+        self.assertEqual(len(found), 3)
+        self.assertEqual(set(found["phone"]), {"+5511000000001", "+5511000000002"})
 
-    def test_multiselect_uses_or_within_each_filter(self):
-        found = search.filter_contacts(
-            self.contacts, carriers=["Flexboys", "Jadlog"], marketplace_tags=["Amazon", "Mercado Livre"],
-        )
-        self.assertEqual(set(found["whatsapp_number"]), {"+5511000000001", "+5511000000002"})
-        self.assertEqual(len(found), 2)
+    def test_marketplace_uses_its_own_column_and_multiple_markets_are_preserved(self):
+        extra = self.contacts.iloc[:1].copy().assign(marketplace="Amazon | Mercado Livre")
+        found = search.filter_contacts(extra, marketplaces=["mercado livre"])
+        self.assertEqual(found.iloc[0]["marketplace"], "Amazon | Mercado Livre")
+        extra["marketplace"] = "Amazonas"
+        self.assertTrue(search.filter_contacts(extra, marketplaces=["Amazon"]).empty)
 
-    def test_tag_match_is_exact_and_seller_text_is_literal_and_accent_insensitive(self):
-        extra = self.contacts.iloc[:1].copy().assign(tags="Flexboys | Amazonas")
-        found = search.filter_contacts(pd.concat([self.contacts, extra]), marketplace_tags=[" Amazon "])
-        self.assertEqual(len(found), 1)
-        found = search.filter_contacts(self.contacts, seller_query="JOAO [1]")
-        self.assertEqual(len(found), 2)
-        found = search.filter_contacts(self.contacts, seller_query="A-02")
-        self.assertEqual(found["whatsapp_number"].tolist(), ["+5511000000002"])
+    def test_seller_query_is_literal_accent_insensitive_and_only_searches_names(self):
+        self.assertEqual(len(search.filter_contacts(self.contacts, seller_query="JOAO [1]")), 2)
+        self.assertEqual(len(search.filter_contacts(self.contacts, seller_query="A-02")), 1)
+        self.assertTrue(search.filter_contacts(self.contacts, seller_query="Flexboys").empty)
 
-    def test_phone_accepts_formatting_partial_numbers_and_country_code(self):
+    def test_phone_supports_formatting_and_partial_digits(self):
         for value in ("+55 (11) 00000-0001", "11000000001", "0000-0001"):
-            with self.subTest(value=value):
-                self.assertEqual(len(search.filter_contacts(self.contacts, phone_query=value)), 2)
+            self.assertEqual(len(search.filter_contacts(self.contacts, phone_query=value)), 3)
         self.assertTrue(search.filter_contacts(self.contacts, phone_query="abc()").empty)
 
-    def test_new_marketplace_tags_need_no_code_or_import_changes(self):
-        carriers, tags = search.filter_options(self.contacts)
+    def test_options_use_carriers_and_marketplaces_without_seller_names(self):
+        carriers, marketplaces = search.filter_options(self.contacts)
         self.assertIn("Nova Rota", carriers)
-        self.assertIn("Loja Nova", tags)
-        self.assertEqual(len(search.filter_contacts(self.contacts, marketplace_tags=["Loja Nova"])), 1)
+        self.assertIn("Loja Nova", marketplaces)
+        self.assertNotIn("João [1]", marketplaces)
 
-    def test_one_result_per_phone_preserves_all_matching_links(self):
+    def test_results_do_not_merge_distinct_sellers_sharing_a_phone(self):
         results = search.summarize_contacts(self.contacts)
-        self.assertEqual(len(results), 3)
-        first = results.set_index("Telefone").loc["+5511000000001"]
-        self.assertEqual(first["Transportadoras"], "Flexboys | Jadlog")
-        self.assertIn("Amazon", first["Tags"])
-        self.assertIn("Shopee", first["Tags"])
-        self.assertEqual(first["Disparos encontrados"], 2)
-        self.assertEqual(first["Último disparo"], date(2026, 11, 12))
+        self.assertEqual(list(results.columns), list(sellers.LABELS.values()))
+        self.assertEqual(len(results), 5)
+        same_phone = results[results["Telefone"].eq("+5511000000001")]
+        self.assertEqual(len(same_phone), 3)
+        self.assertEqual(set(same_phone["Nome do seller"]), {"João [1]", "Outro seller"})
 
-    def test_history_preserves_each_campaign_and_status(self):
-        history = search.contact_history(self.contacts, "+5511000000001")
+    def test_history_matches_phone_without_assigning_seller_identity(self):
+        history = search.contact_history(contacts_from_campaigns(sample_campaigns()), "55 (11) 00000-0001")
         self.assertEqual(history["campaign_id"].tolist(), ["new", "old"])
         self.assertEqual(history["broadcast_status"].tolist(), ["Read", "Sent"])
 
-    def test_filters_and_summary_do_not_mutate_imported_data(self):
+    def test_no_mutation_and_empty_results(self):
         before = self.contacts.copy(deep=True)
         pd.testing.assert_frame_equal(search.filter_contacts(self.contacts), before)
         search.summarize_contacts(self.contacts)
-        search.contact_history(self.contacts, "+5511000000001")
         pd.testing.assert_frame_equal(self.contacts, before)
         empty = self.contacts.iloc[:0]
         self.assertEqual(search.filter_options(empty), ([], []))
-        self.assertTrue(search.filter_contacts(empty).empty)
         self.assertTrue(search.summarize_contacts(empty).empty)
 
 
 class SellerSearchLoadingTests(unittest.TestCase):
     def setUp(self):
-        search.load_contacts_cached.clear()
-        self.addCleanup(search.load_contacts_cached.clear)
+        ms.clear_cache()
+        self.addCleanup(ms.clear_cache)
 
-    def test_loader_reads_all_history_and_counts_legacy_summaries(self):
-        campaigns = sample_campaigns()
-        legacy = campaigns.iloc[:1].copy().assign(contacts_json=None, campaign_id="legacy")
+    def test_search_loads_the_directory_and_not_whatsapp_as_its_base(self):
         connection = object()
         with patch.object(search, "get_connection", return_value=connection), \
-             patch.object(metrics_repository, "fetch_metric_df", return_value=pd.concat([campaigns, legacy])) as fetch:
-            contacts, without_details = search.load_contacts_cached()
-        fetch.assert_called_once_with(connection, METRICS["whatsapp"])
-        self.assertEqual(len(contacts), 4)
-        self.assertEqual(without_details, 1)
-        self.assertIn(date(2026, 1, 1), contacts["date"].tolist())
+             patch.object(metrics_repository, "fetch_metric_df", return_value=sample_directory()) as fetch:
+            self.assertEqual(len(search.load_sellers_cached()), 5)
+        fetch.assert_called_once_with(connection, METRICS["sellers"])
 
-    def test_existing_import_cache_invalidation_refreshes_search(self):
-        campaigns = sample_campaigns()
+    def test_import_cache_invalidation_refreshes_directory_and_history(self):
         with patch.object(search, "get_connection", return_value=object()), \
-             patch.object(metrics_repository, "fetch_metric_df", return_value=campaigns) as fetch:
-            self.assertEqual(len(search.load_contacts_cached()[0]), 4)
-            fetch.return_value = campaigns.iloc[:1]
-            self.assertEqual(len(search.load_contacts_cached()[0]), 4)
+             patch.object(metrics_repository, "fetch_metric_df", return_value=sample_directory()) as fetch:
+            self.assertEqual(len(search.load_sellers_cached()), 5)
+            fetch.return_value = sample_directory().iloc[:1]
+            self.assertEqual(len(search.load_sellers_cached()), 5)
+            ms.clear_cache()
+            self.assertEqual(len(search.load_sellers_cached()), 1)
+            fetch.return_value = sample_campaigns()
+            self.assertEqual(len(search.load_contacts_cached()[0]), 2)
+            fetch.return_value = sample_campaigns().iloc[:1]
+            self.assertEqual(len(search.load_contacts_cached()[0]), 2)
             ms.clear_cache()
             self.assertEqual(len(search.load_contacts_cached()[0]), 1)
-            self.assertEqual(fetch.call_count, 2)
 
 
 class SellerSearchPageTests(unittest.TestCase):
     def setUp(self):
-        self.contacts = contacts_from_campaigns(sample_campaigns())
-        self.loader = patch.object(search, "load_contacts_cached", return_value=(self.contacts, 0))
-        self.load = self.loader.start()
-        self.addCleanup(self.loader.stop)
+        self.contacts = sample_directory()
+        for name, value in (("load_sellers_cached", self.contacts),
+                            ("load_contacts_cached", (contacts_from_campaigns(sample_campaigns()), 0))):
+            patcher = patch.object(search, name, return_value=value)
+            setattr(self, name, patcher.start())
+            self.addCleanup(patcher.stop)
 
     def page(self):
-        return AppTest.from_string(
-            "from views.seller_search import render_seller_search\nrender_seller_search()", default_timeout=20,
-        ).run()
+        return AppTest.from_string("from views.seller_search import render_seller_search\nrender_seller_search()", default_timeout=20).run()
 
-    def test_page_searches_all_history_and_combines_filters(self):
+    def test_four_column_filters_and_history(self):
         app = self.page()
         self.assertFalse(app.exception)
-        self.assertEqual(len(app.dataframe[0].value), 3)
+        self.assertEqual(len(app.dataframe[0].value), 5)
+        self.load_contacts_cached.assert_not_called()
         app.multiselect(key="seller_carriers").set_value(["Flexboys"]).run()
         app.multiselect(key="seller_marketplaces").set_value(["Amazon"]).run()
         app.text_input(key="seller_phone").set_value("(11) 00000-0001").run()
         app.text_input(key="seller_query").set_value("Joao [1]").run()
         self.assertFalse(app.exception)
-        self.assertEqual(app.dataframe[0].value["Telefone"].tolist(), ["+5511000000001"])
-
-    def test_selected_contact_shows_complete_history(self):
-        app = self.page()
-        app.multiselect(key="seller_marketplaces").set_value(["Amazon"]).run()
+        self.assertEqual(app.dataframe[0].value["Nome do seller"].tolist(), ["João [1]"])
         app.selectbox(key="seller_contact").select("+5511000000001").run()
-        self.assertFalse(app.exception)
         self.assertEqual(app.dataframe[1].value["Campanha"].tolist(), ["new", "old"])
-        self.assertEqual(app.dataframe[1].value["Broadcast Status"].tolist(), ["Read", "Sent"])
 
-    def test_changing_results_resets_history_selection_and_clear_restores_results(self):
+    def test_no_whatsapp_history_is_explicit(self):
+        app = self.page()
+        app.selectbox(key="seller_contact").select("+5511000000003").run()
+        self.assertFalse(app.exception)
+        self.assertTrue(any("Nenhum disparo" in info.value for info in app.info))
+
+    def test_filters_reset_history_and_clear_restores_all_links(self):
         app = self.page()
         app.selectbox(key="seller_contact").select("+5511000000001").run()
         app.text_input(key="seller_phone").set_value("000000003").run()
-        self.assertFalse(app.exception)
         self.assertIsNone(app.selectbox(key="seller_contact").value)
         app.button[0].click().run()
         self.assertFalse(app.exception)
-        self.assertEqual(app.text_input(key="seller_phone").value, "")
-        self.assertEqual(len(app.dataframe[0].value), 3)
+        self.assertEqual(len(app.dataframe[0].value), 5)
 
-    def test_removed_tags_are_discarded_after_data_refresh(self):
+    def test_removed_options_are_discarded_after_refresh(self):
         app = self.page()
         app.multiselect(key="seller_marketplaces").set_value(["Amazon"]).run()
-        self.load.return_value = (self.contacts.iloc[-1:], 0)
+        self.load_sellers_cached.return_value = self.contacts.iloc[-1:]
         app.run()
         self.assertFalse(app.exception)
         self.assertEqual(app.multiselect(key="seller_marketplaces").value, [])
-        self.assertEqual(app.dataframe[0].value["Telefone"].tolist(), ["+5511000000003"])
 
-    def test_invalid_phone_and_no_matches_are_explicit(self):
+    def test_invalid_phone_and_empty_directory_have_guidance(self):
         app = self.page()
         app.text_input(key="seller_phone").set_value("abc").run()
-        self.assertFalse(app.exception)
         self.assertTrue(app.warning)
         self.assertFalse(app.dataframe)
-        self.assertTrue(any("Nenhum contato" in info.value for info in app.info))
-
-    def test_empty_contacts_and_legacy_imports_have_clear_guidance(self):
-        self.load.return_value = (pd.DataFrame(columns=CONTACT_COLUMNS), 2)
+        self.load_sellers_cached.return_value = self.contacts.iloc[:0]
         app = self.page()
-        self.assertFalse(app.exception)
-        self.assertTrue(any("Importe um CSV" in info.value for info in app.info))
-        self.assertTrue(any("2 disparo(s)" in item.value for item in app.caption))
+        self.assertTrue(any("Cadastro de sellers" in info.value for info in app.info))
 
-    def test_database_error_is_shown_without_breaking_the_page(self):
-        self.load.side_effect = RuntimeError("test database unavailable")
+    def test_database_errors_do_not_break_the_page_or_erase_results(self):
+        self.load_sellers_cached.side_effect = RuntimeError("test directory unavailable")
         app = self.page()
         self.assertFalse(app.exception)
         self.assertTrue(app.error)
+        self.load_sellers_cached.side_effect = None
+        self.load_contacts_cached.side_effect = RuntimeError("test history unavailable")
+        app = self.page()
+        app.selectbox(key="seller_contact").select("+5511000000001").run()
+        self.assertFalse(app.exception)
+        self.assertTrue(app.warning)
+        self.assertEqual(len(app.dataframe[0].value), 5)
 
 
 if __name__ == "__main__":

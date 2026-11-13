@@ -78,6 +78,12 @@ class MetricDefinition:
     arquivo (ver `parse` e `context` acima). Métricas 'xlsx' também
     precisam de `xlsx_sheet`."""
 
+    additional_file_formats: Sequence[Literal["json", "csv", "xlsx"]] = ()
+    """Formatos adicionais aceitos pelo mesmo parser de tabela."""
+
+    select_xlsx_sheet: bool = False
+    """Permite escolher a aba, usando xlsx_sheet como sugestão inicial."""
+
     xlsx_sheet: str | None = None
     """Nome da aba a ler quando `file_format == 'xlsx'` — o arquivo
     pode ter várias abas (ex.: o relatório semanal da Amazon vem com

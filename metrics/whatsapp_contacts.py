@@ -7,6 +7,8 @@ import re
 
 import pandas as pd
 
+from utils.phones import normalize_phone
+
 
 CONTACT_COLUMNS = ["cliente", "campaign_id", "date", "tags", "whatsapp_number", "broadcast_status"]
 SUMMARY_COLUMNS = [
@@ -95,10 +97,9 @@ def parse_contacts(raw: pd.DataFrame, context: dict) -> pd.DataFrame:
     for line, (_, row) in enumerate(raw.iterrows(), start=2):
         tags = " | ".join(tag.strip() for tag in _text(row[headers["tags"]]).split("|") if tag.strip())
         carrier = carrier_from_tags(tags)
-        number = re.sub(r"[\s().-]", "", _text(row[headers["whatsappnumbers"]]))
-        if not re.fullmatch(r"\+?[0-9]{8,15}", number):
+        number = normalize_phone(row[headers["whatsappnumbers"]])
+        if number is None:
             raise ValueError(f"Linha {line}: Whatsapp numbers deve conter um telefone válido com DDI.")
-        number = "+" + number.lstrip("+")
         if number in seen:
             raise ValueError(f"Linha {line}: Whatsapp numbers repetido no mesmo disparo; revise o CSV.")
         seen.add(number)

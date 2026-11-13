@@ -18,6 +18,7 @@ from metrics.base import MetricDefinition
 from metrics.email import DEFINITION as EMAIL_DEFINITION
 from metrics.login import DEFINITION as LOGIN_DEFINITION
 from metrics.popup import DEFINITION as POPUP_DEFINITION
+from metrics.sellers import DEFINITION as SELLERS_DEFINITION
 from metrics.whatsapp import DEFINITION as WHATSAPP_DEFINITION
 
 METRICS: dict[str, MetricDefinition] = {
@@ -27,6 +28,7 @@ METRICS: dict[str, MetricDefinition] = {
     WHATSAPP_DEFINITION.key: WHATSAPP_DEFINITION,
     AMAZON_TRAFFIC_DEFINITION.key: AMAZON_TRAFFIC_DEFINITION,
     AMAZON_FUNNEL_DEFINITION.key: AMAZON_FUNNEL_DEFINITION,
+    SELLERS_DEFINITION.key: SELLERS_DEFINITION,
 }
 
 

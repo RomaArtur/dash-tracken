@@ -97,13 +97,21 @@ def load_csv(file_bytes: bytes) -> pd.DataFrame:
         raise ImportValidationError(f"Arquivo CSV inválido: {exc}") from exc
 
 
-def load_xlsx(file_bytes: bytes, sheet_name: str) -> pd.DataFrame:
+def xlsx_sheet_names(file_bytes: bytes) -> list[str]:
+    try:
+        with pd.ExcelFile(io.BytesIO(file_bytes), engine="openpyxl") as book:
+            return book.sheet_names
+    except Exception as exc:
+        raise ImportValidationError(f"Arquivo Excel inválido: {exc}") from exc
+
+
+def load_xlsx(file_bytes: bytes, sheet_name: str, *, dtype=None) -> pd.DataFrame:
     """Lê uma aba específica de um arquivo Excel de múltiplas abas (ex.:
     o relatório semanal da Amazon, que traz 'traffic' e 'funnel' juntos
     no mesmo arquivo — cada aba vira uma métrica registrada à parte, ver
     metrics/amazon_traffic.py e metrics/amazon_funnel.py)."""
     try:
-        return pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet_name, engine="openpyxl")
+        return pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet_name, engine="openpyxl", dtype=dtype)
     except ValueError as exc:
         raise ImportValidationError(f"Não foi possível ler a aba '{sheet_name}' do arquivo Excel: {exc}") from exc
 

@@ -1,4 +1,4 @@
-"""Página de busca de sellers com os contatos e tags já importados."""
+"""Página de busca usando as colunas explícitas do cadastro de sellers."""
 from __future__ import annotations
 
 import logging
@@ -26,23 +26,21 @@ def _discard_missing_options(key: str, options: list[str]) -> None:
 
 def render_seller_search() -> None:
     st.title("Buscar sellers")
-    st.caption("Localize os contatos importados do WhatsApp por transportadora, tags e telefone, em todo o histórico.")
+    st.caption("Consulte a base importada pelas colunas Telefone, Marketplace, Transportadora e Nome do seller.")
     try:
-        contacts, without_details = search.load_contacts_cached()
+        contacts = search.load_sellers_cached()
     except Exception:
-        logger.exception("Falha ao carregar contatos para busca de sellers")
-        st.error("Não foi possível carregar os contatos. Verifique a conexão com o banco e tente novamente.")
+        logger.exception("Falha ao carregar cadastro de sellers")
+        st.error("Não foi possível carregar o cadastro de sellers. Verifique a conexão com o banco e tente novamente.")
         return
 
-    if without_details:
-        st.caption(f"{without_details} disparo(s) no formato de resumo não possuem detalhes de contatos para consulta.")
     if contacts.empty:
-        st.info("Importe um CSV de contatos em Disparos WhatsApp para habilitar a busca de sellers.")
+        st.info("Em Importar Dados, selecione Cadastro de sellers e envie um CSV ou Excel com os dados dos sellers.")
         return
 
-    carriers, tags = search.filter_options(contacts)
+    carriers, marketplaces = search.filter_options(contacts)
     _discard_missing_options("seller_carriers", carriers)
-    _discard_missing_options("seller_marketplaces", tags)
+    _discard_missing_options("seller_marketplaces", marketplaces)
     with st.container(border=True):
         carrier_col, marketplace_col = st.columns(2)
         with carrier_col:
@@ -51,13 +49,12 @@ def render_seller_search() -> None:
             )
         with marketplace_col:
             selected_marketplaces = st.multiselect(
-                "Marketplace (tag)", tags, key="seller_marketplaces", placeholder="Selecione a tag do marketplace",
-                help="Selecione as tags que identificam o marketplace. Tags novas ficam disponíveis após a importação.",
+                "Marketplace", marketplaces, key="seller_marketplaces", placeholder="Todos os marketplaces",
             )
         seller_col, phone_col = st.columns(2)
         with seller_col:
             seller_query = st.text_input(
-                "Seller / tag", key="seller_query", placeholder="Nome, ID ou texto presente nas tags",
+                "Nome do seller", key="seller_query", placeholder="Nome completo ou parte dele",
             )
         with phone_col:
             phone_query = st.text_input("Telefone", key="seller_phone", placeholder="Número completo ou parte dele")
@@ -66,7 +63,7 @@ def render_seller_search() -> None:
     if phone_query.strip() and not search.phone_digits(phone_query):
         st.warning("Digite os números do telefone. Espaços, parênteses, hífen e + são aceitos.")
     matches = search.filter_contacts(
-        contacts, carriers=selected_carriers, marketplace_tags=selected_marketplaces,
+        contacts, carriers=selected_carriers, marketplaces=selected_marketplaces,
         seller_query=seller_query, phone_query=phone_query,
     )
     if matches.empty:
@@ -74,23 +71,21 @@ def render_seller_search() -> None:
         return
 
     results = search.summarize_contacts(matches)
-    st.subheader("Contatos encontrados")
+    st.subheader("Sellers encontrados")
     st.caption(
-        f"{len(results)} telefone(s) encontrado(s). Cada linha reúne os disparos que atendem aos filtros. "
-        "O filtro Marketplace usa as tags selecionadas; a busca por seller consulta o texto das tags."
+        f"{len(results)} vínculo(s), com {results['Telefone'].nunique()} telefone(s) único(s). "
+        "Cada linha preserva a associação entre seller, transportadora e marketplace do arquivo."
     )
     st.dataframe(
         results, width="stretch", hide_index=True,
         column_config={
             "Telefone": st.column_config.TextColumn(),
-            "Tags": st.column_config.TextColumn(width="medium"),
-            "Disparos encontrados": st.column_config.NumberColumn("Disparos", width="small"),
-            "Último disparo": st.column_config.DateColumn(format="DD/MM/YYYY"),
+            "Nome do seller": st.column_config.TextColumn(width="large"),
         },
     )
 
-    st.subheader("Histórico do contato")
-    numbers = results["Telefone"].tolist()
+    st.subheader("Histórico de disparos do telefone")
+    numbers = results["Telefone"].drop_duplicates().tolist()
     if st.session_state.get("seller_contact") not in numbers:
         st.session_state["seller_contact"] = None
     number = st.selectbox(
@@ -98,8 +93,19 @@ def render_seller_search() -> None:
         placeholder="Selecione um contato encontrado",
     )
     if number is not None:
-        st.caption("Todos os disparos importados deste telefone, incluindo outros períodos e transportadoras.")
-        history = search.contact_history(contacts, number)
+        try:
+            campaigns, without_details = search.load_contacts_cached()
+        except Exception:
+            logger.exception("Falha ao carregar histórico de WhatsApp")
+            st.warning("Não foi possível carregar o histórico de WhatsApp deste telefone.")
+            return
+        if without_details:
+            st.caption(f"{without_details} disparo(s) importado(s) como resumo não possuem detalhes de contatos.")
+        st.caption("Disparos associados a este telefone. Um número pode estar vinculado a mais de um seller.")
+        history = search.contact_history(campaigns, number)
+        if history.empty:
+            st.info("Nenhum disparo de WhatsApp encontrado para este telefone.")
+            return
         labels = {column: CONTACT_LABELS[column] for column in ("date", "cliente", "campaign_id", "broadcast_status", "tags")}
         st.dataframe(
             history[list(labels)].rename(columns=labels), width="stretch", hide_index=True,

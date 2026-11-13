@@ -76,7 +76,7 @@ def _render_csv_metadata_inputs(
 
 def render_import_page() -> None:
     st.title("Importar Dados")
-    st.caption("Envie um arquivo JSON, CSV ou Excel de métricas para atualizar o histórico do dashboard.")
+    st.caption("Envie um arquivo JSON, CSV ou Excel para atualizar métricas ou o cadastro de sellers.")
 
     metric_keys = list(METRICS.keys())
     metric_labels = [METRICS[k].label for k in metric_keys]
@@ -102,18 +102,21 @@ def render_import_page() -> None:
     if detected in metric_keys:
         default_index = metric_keys.index(detected)
 
-    selected_label = st.selectbox("Tipo de métrica", metric_labels, index=default_index)
+    selected_label = st.selectbox("Tipo de dados", metric_labels, index=default_index)
     selected_key = metric_keys[metric_labels.index(selected_label)]
     metric = METRICS[selected_key]
 
     filename_lower = uploaded_file.name.lower()
-    if not filename_lower.endswith(f".{metric.file_format}"):
-        st.error(f"Selecione um arquivo .{metric.file_format} para a métrica '{metric.label}'.")
+    file_format = Path(filename_lower).suffix.lstrip(".")
+    allowed_formats = (metric.file_format, *metric.additional_file_formats)
+    if file_format not in allowed_formats:
+        extensions = ", ".join(f".{value}" for value in allowed_formats)
+        st.error(f"Selecione um arquivo {extensions} para '{metric.label}'.")
         return
 
     try:
         context: dict | None = None
-        if metric.file_format == "csv":
+        if file_format == "csv":
             raw = csv_raw
             context = metric.render_import_context(raw, uploaded_file.name) if metric.render_import_context else {}
             if context is None:
@@ -132,8 +135,17 @@ def render_import_page() -> None:
                     return
                 cliente, campanha = metadata
                 context = {"cliente": cliente, "campaign_id": campanha}
-        elif metric.file_format == "xlsx":
-            raw = importer.load_xlsx(uploaded_file.getvalue(), metric.xlsx_sheet)
+        elif file_format == "xlsx":
+            sheet = metric.xlsx_sheet
+            if metric.select_xlsx_sheet:
+                sheets = importer.xlsx_sheet_names(uploaded_file.getvalue())
+                sheet = st.selectbox("Aba dos sellers", sheets, index=sheets.index(sheet) if sheet in sheets else 0)
+                st.caption("Use Vínculos por seller para preservar todas as associações de um telefone. O valor 0 na aba Sem telefone indica ausência de número.")
+            raw = importer.load_xlsx(uploaded_file.getvalue(), sheet, dtype=object if metric.select_xlsx_sheet else None)
+            if metric.render_import_context:
+                context = metric.render_import_context(raw, uploaded_file.name)
+                if context is None:
+                    return
         else:
             raw = importer.load_json(uploaded_file.getvalue())
         preview = importer.build_preview(metric, uploaded_file.name, raw, context=context)
